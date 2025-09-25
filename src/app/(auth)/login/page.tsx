@@ -17,17 +17,17 @@ export default function Login() {
       <form className="space-y-6" onSubmit={handleSubmit}>
         <div>
           <label
-            htmlFor="email"
+            htmlFor="username"
             className="block text-sm font-medium text-gray-700"
           >
-            Email address
+            Username
           </label>
           <div className="mt-1">
             <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
+              id="username"
+              name="username"
+              type="username"
+              autoComplete="username"
               required
               className="text-black appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
