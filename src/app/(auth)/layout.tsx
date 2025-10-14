@@ -1,4 +1,6 @@
 import React from "react";
+import { Layout, Flex } from "antd";
+import { Content } from "antd/lib/layout/layout";
 
 export default function AuthLayout({
   children,
@@ -6,13 +8,8 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
-      <div
-        className="sm:mx-auto sm:w-full sm:max-w-md bg-white shadow sm:rounded-lg sm:px-10"
-        style={{ padding: "20px" }}
-      >
-        {children}
-      </div>
-    </div>
+    <Layout style={{ height: "100vh" }}>
+      <Content style={{ height: "100%", margin: "auto", paddingTop: "200px" }}>{children}</Content>
+    </Layout>
   );
 }
