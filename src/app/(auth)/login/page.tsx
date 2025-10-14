@@ -1,14 +1,16 @@
 "use client";
 import React, { useState } from "react";
 import AuthApi from "@/share/api/auth";
+import { useRouter } from "next/navigation";
 
 export default function Login() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    AuthApi.login(username, password);
+    AuthApi.login(username, password).then(() => router.push("/messenger"));
   };
 
   return (
