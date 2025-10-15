@@ -1,5 +1,5 @@
 import React from "react";
-import { Layout, Flex } from "antd";
+import { Layout } from "antd";
 import { Content } from "antd/lib/layout/layout";
 
 export default function AuthLayout({
