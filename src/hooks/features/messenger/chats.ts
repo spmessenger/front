@@ -1,5 +1,5 @@
 import React from "react";
-import MessengerApi from "@/share/api/messenger";
+import MessengerApi from "@/lib/api/messenger";
 
 interface Chat {
   id: number;

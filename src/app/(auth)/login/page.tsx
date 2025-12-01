@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import AuthApi from "@/share/api/auth";
+import AuthApi from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
 import { Form, Input, Button, Card, Flex } from "antd";
 import FormItem from "antd/lib/form/FormItem";
@@ -9,11 +9,14 @@ import InputPassword from "antd/lib/input/Password";
 export default function Login() {
   const router = useRouter();
 
-  const onFinish = (values: any) => {
+  const onFinish = (values: { username: string; password: string }) => {
     console.log("Success:", values);
-    AuthApi.login(values.username, values.password).then(() => router.push("/messenger"));
+    AuthApi.login(values.username, values.password).then(() =>
+      router.push("/messenger")
+    );
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix type
   const onFinishFailed = (errorInfo: any) => {
     console.log("Failed:", errorInfo);
   };

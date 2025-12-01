@@ -1,7 +1,5 @@
 import React from "react";
-import { Layout, Flex } from "antd";
-import { Content, Header, Footer } from "antd/lib/layout/layout";
-import Sider from "antd/lib/layout/Sider";
+import { Flex } from "antd";
 
 export default function MessengerLayout({
   children,

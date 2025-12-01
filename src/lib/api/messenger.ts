@@ -1,4 +1,4 @@
-import axios from "@/share/axios";
+import axios from "@/lib/axios";
 
 export default class MessengerApi {
   static getChats() {
