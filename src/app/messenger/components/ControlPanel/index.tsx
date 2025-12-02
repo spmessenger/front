@@ -1,6 +1,7 @@
 import React, { Fragment } from "react";
 import { Avatar, Button, Drawer, Flex, Menu } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
+import { useModalSetter } from "@/hooks/features/ui/modal";
 
 function ControlPanelHeader() {
   return (
@@ -15,6 +16,12 @@ function ControlPanelHeader() {
 }
 
 export default function ControlPanel() {
+  const setModal = useModalSetter();
+
+  const onClick = ({ key }: { key: string }) => {
+    setModal({ open: true, content: <div>Content</div> });
+  };
+
   const [open, setOpen] = React.useState(false);
   const items = [
     { key: "1", label: "Мой профиль" },
@@ -29,13 +36,15 @@ export default function ControlPanel() {
         title={<ControlPanelHeader />}
         onClose={() => setOpen(false)}
       >
-        <Menu selectable={false} items={items} mode="vertical" />
+        <Menu
+          selectable={false}
+          items={items}
+          mode="vertical"
+          onClick={onClick}
+        />
       </Drawer>
       <Flex align="center" justify="center" style={{ height: "100%" }}>
-        <Button
-          icon={<MoreOutlined />}
-          onClick={() => setOpen(true)}
-        />
+        <Button icon={<MoreOutlined />} onClick={() => setOpen(true)} />
       </Flex>
     </Fragment>
   );

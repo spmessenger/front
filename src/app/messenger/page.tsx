@@ -1,6 +1,5 @@
 "use client";
-import React from "react";
-import { Fragment } from "react";
+import React, { Fragment } from "react";
 import { Layout } from "antd";
 import { Content, Header, Footer } from "antd/lib/layout/layout";
 import Sider from "antd/lib/layout/Sider";
@@ -8,6 +7,7 @@ import ChatsList from "./components/ChatsList";
 import ChatGroupsList from "./components/ChatGroupsList";
 import ControlPanel from "./components/ControlPanel";
 import SearchInput from "./components/SearchInput";
+import Modal from "@/components/Modal";
 
 export default function Messenger() {
   return (
@@ -33,6 +33,7 @@ export default function Messenger() {
         <Content style={{ background: "#0958d9" }}>Active chat</Content>
         <Footer style={{ background: "#4096ff" }}>Footer</Footer>
       </Layout>
+      <Modal />
     </Fragment>
   );
 }
