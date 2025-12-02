@@ -31,11 +31,12 @@ export default function ControlPanel() {
       >
         <Menu selectable={false} items={items} mode="vertical" />
       </Drawer>
-      <Button
-        icon={<MoreOutlined />}
-        style={{ marginLeft: "8px" }}
-        onClick={() => setOpen(true)}
-      />
+      <Flex align="center" justify="center" style={{ height: "100%" }}>
+        <Button
+          icon={<MoreOutlined />}
+          onClick={() => setOpen(true)}
+        />
+      </Flex>
     </Fragment>
   );
 }

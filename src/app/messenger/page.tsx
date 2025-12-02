@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { Fragment } from "react";
 import { Layout } from "antd";
 import { Content, Header, Footer } from "antd/lib/layout/layout";
@@ -6,6 +7,7 @@ import Sider from "antd/lib/layout/Sider";
 import ChatsList from "./components/ChatsList";
 import ChatGroupsList from "./components/ChatGroupsList";
 import ControlPanel from "./components/ControlPanel";
+import SearchInput from "./components/SearchInput";
 
 export default function Messenger() {
   return (
@@ -18,9 +20,9 @@ export default function Messenger() {
           <ChatGroupsList />
         </Content>
       </Sider>
-      <Sider width="30%" style={{ background: "#1677ff" }}>
+      <Sider width="25%" style={{ background: "#1677ff" }}>
         <Layout>
-          <Header style={{ background: "#1677ff" }}>Search</Header>
+          <Header style={{ background: "#1677ff", padding: "0 10px" }}><SearchInput /></Header>
           <Content style={{ background: "#0958d9" }}>
             <ChatsList />
           </Content>

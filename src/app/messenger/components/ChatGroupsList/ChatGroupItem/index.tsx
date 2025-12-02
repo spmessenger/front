@@ -1,4 +1,5 @@
-import ListItem, { Meta } from "antd/lib/list/Item";
+import { Avatar, Badge, Flex } from "antd";
+import { FolderFilled } from "@ant-design/icons";
 
 interface ChatGroupItemProps {
   group: {
@@ -10,8 +11,11 @@ interface ChatGroupItemProps {
 
 export default function ChatGroupItem({ group }: ChatGroupItemProps) {
   return (
-    <ListItem>
-      <Meta title={group.title} />
-    </ListItem>
+    <Flex align="center" vertical>
+      <Badge count={group.unread_messages_count} size="small" overflowCount={99}>
+        <Avatar icon={<FolderFilled />} />
+      </Badge>
+      <label>{group.title}</label>
+    </Flex>
   );
 }
