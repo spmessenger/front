@@ -8,8 +8,14 @@ import ChatGroupsList from "./components/ChatGroupsList";
 import ControlPanel from "./components/ControlPanel";
 import SearchInput from "./components/SearchInput";
 import Modal from "@/components/Modal";
+import MessengerApi from "@/lib/api/messenger";
+import { useChatsSetter } from "@/hooks/features/messenger/chats";
 
 export default function Messenger() {
+  const setChats = useChatsSetter();
+  React.useEffect(() => {
+    MessengerApi.getChats().then((res) => setChats(res.data));
+  }, []); // TODO: should be moved to a container-component
   return (
     <Fragment>
       <Sider width="5%" style={{ background: "#0c418aff" }}>
@@ -22,7 +28,9 @@ export default function Messenger() {
       </Sider>
       <Sider width="25%" style={{ background: "#1677ff" }}>
         <Layout>
-          <Header style={{ background: "#1677ff", padding: "0 10px" }}><SearchInput /></Header>
+          <Header style={{ background: "#1677ff", padding: "0 10px" }}>
+            <SearchInput />
+          </Header>
           <Content style={{ background: "#0958d9" }}>
             <ChatsList />
           </Content>

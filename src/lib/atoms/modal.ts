@@ -1,5 +1,4 @@
-import React from "react";
 import { atom } from "jotai";
+import type { ModalAtom } from "../types/atoms";
 
-export const modalOpenAtom = atom<boolean>(false);
-export const modalContentAtom = atom<React.ReactNode | null>(null);
+export const modalAtom = atom<ModalAtom>({});

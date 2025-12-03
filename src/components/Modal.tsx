@@ -1,9 +1,20 @@
 import React from "react";
 import { Modal as AntdModal } from "antd";
-import { useModalContent, useModalOpen } from "@/hooks/features/ui/modal";
+import { useModal } from "@/hooks/features/ui/modal";
 
 export default function Modal() {
-  const modalOpen = useModalOpen();
-  const modalContent = useModalContent();
-  return <AntdModal open={modalOpen}>{modalContent}</AntdModal>;
+  const modal = useModal();
+  return (
+    <AntdModal
+      title={modal.title}
+      open={modal.open}
+      onOk={modal.onOk}
+      okText={modal.okText}
+      cancelText={modal.cancelText}
+      onCancel={modal.onCancel}
+      closable={false}
+    >
+      {modal.content}
+    </AntdModal>
+  );
 }

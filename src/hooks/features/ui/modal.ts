@@ -1,29 +1,19 @@
-import React from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { modalOpenAtom, modalContentAtom } from "@/lib/atoms/modal";
+import { modalAtom } from "@/lib/atoms/modal";
+import type { ModalAtom, ModalSetterProps } from "@/lib/types/atoms";
 
-type ModalSetterProps = Partial<{
-  open: boolean;
-  content: React.ReactNode | null;
-}>;
+export function useModal(): ModalAtom {
+  return useAtomValue(modalAtom);
+}
 
 export function useModalSetter(): (props: ModalSetterProps) => void {
-  const setModalOpen = useSetAtom(modalOpenAtom);
-  const setModalContent = useSetAtom(modalContentAtom);
+  const modal = useAtomValue(modalAtom);
+  const setModal = useSetAtom(modalAtom);
   return (props: ModalSetterProps) => {
-    if (props.open !== undefined) {
-      setModalOpen(props.open);
+    if (props.clear) {
+      setModal({});
+      return;
     }
-    if (props.content !== undefined) {
-      setModalContent(props.content);
-    }
+    setModal({ ...modal, ...props });
   };
-}
-
-export function useModalOpen(): boolean {
-  return useAtomValue(modalOpenAtom);
-}
-
-export function useModalContent(): React.ReactNode | null {
-  return useAtomValue(modalContentAtom);
 }
