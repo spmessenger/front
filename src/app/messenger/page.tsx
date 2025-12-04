@@ -9,9 +9,10 @@ import ControlPanel from "./components/ControlPanel";
 import SearchInput from "./components/SearchInput";
 import Modal from "@/components/Modal";
 import MessengerApi from "@/lib/api/messenger";
-import { useChatsSetter } from "@/hooks/features/messenger/chats";
+import { useChats, useChatsSetter } from "@/hooks/features/messenger/chats";
 
 export default function Messenger() {
+  const chats = useChats();
   const setChats = useChatsSetter();
   React.useEffect(() => {
     MessengerApi.getChats().then((res) => setChats(res.data));
@@ -32,7 +33,7 @@ export default function Messenger() {
             <SearchInput />
           </Header>
           <Content style={{ background: "#0958d9" }}>
-            <ChatsList />
+            <ChatsList chats={chats} />
           </Content>
         </Layout>
       </Sider>

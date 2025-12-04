@@ -1,15 +1,20 @@
 import React from "react";
-import { List } from "antd";
+import { Flex } from "antd";
 import { useChats } from "@/hooks/features/messenger/chats";
 import ChatItem from "./ChatItem";
+import { ChatType } from "@/lib/types";
 
-export default function ChatsList() {
-  const chats = useChats();
+interface ChatsListProps {
+  chats: ChatType[];
+  onClick: (chat: ChatType) => void;
+}
+
+export default function ChatsList({chats, onClick}: ChatsListProps) {
   return (
-    <List
-      itemLayout="horizontal"
-      dataSource={chats}
-      renderItem={(item) => <ChatItem chat={item} />}
-    />
+    <Flex vertical>
+      {chats.map((chat) => (
+        <ChatItem key={chat.id} chat={chat} onClick={onClick} />
+      ))}
+    </Flex>
   );
 }

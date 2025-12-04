@@ -1,45 +1,40 @@
 import React from "react";
-import ListItem, { Meta } from "antd/lib/list/Item";
+import Text from "antd/lib/typography/Text";
 import type { ChatType } from "./types";
+import { Avatar, Badge, Flex } from "antd";
+import { HomeFilled } from "@ant-design/icons";
 
 interface ChatItemProps {
-  chat: ChatType;
-  onClick: () => void;
+  chat: ChatType & { avatar?: React.ReactNode };
+  onClick: (chat: ChatType) => void;
 }
 
-export default function ChatItemContainer({ chat }: ChatItemProps) {
-  const onClick = () => {
-    console.log("Clicked", chat.id);
-  };
-  return <ChatItem chat={chat} onClick={onClick} />;
+export default function ChatItemContainer(props: ChatItemProps) {
+  return <ChatItem {...props} />;
 }
 
-function PrivateChatItem({ chat }: ChatItemProps) {
+function PrivateChatItem(props: ChatItemProps) {
+  props.chat.title = "Избранное";
+  props.chat.avatar = <Avatar size={48} icon={<HomeFilled />} />;
+  return <GeneralChatItem {...props} />;
+}
+
+function GeneralChatItem({ chat, onClick }: ChatItemProps) {
   return (
-    <ListItem style={{ height: "68px" }}>
-      <Meta
-        avatar={<div>Avatar</div>}
-        title={"Избранное"}
-        description={chat.type}
-      />
-    </ListItem>
+    <div onClick={() => onClick(chat)} style={{ cursor: "pointer" }}>
+      <Flex gap={10} style={{ margin: "8px" }}>
+        {chat.avatar ?? <Avatar size={48} src={chat.avatar_url} />}
+        <Flex justify="space-between" vertical>
+          <Text strong>{chat.title}</Text>
+          <Text type="secondary">{"last message"}</Text>
+        </Flex>
+        <Flex vertical gap={4} wrap style={{ marginLeft: "auto" }} align="end">
+          <Text type="secondary">12:00</Text>
+          <Badge count={1} />
+        </Flex>
+      </Flex>
+    </div>
   );
-}
-
-function GeneralChatItem({ chat }: ChatItemProps) {
-  return (
-    <ListItem style={{ height: "68px" }}>
-      <Meta
-        avatar={<div>Avatar</div>}
-        title={chat.title}
-        description={chat.type}
-      />
-    </ListItem>
-  );
-}
-
-function Hoverable({ children, onClick }: { children: React.ReactNode, onClick: () => void }) {
-  return <div className="hoverable" onClick={onClick}>{children}</div>;
 }
 
 function ChatItem(props: ChatItemProps) {
@@ -52,9 +47,5 @@ function ChatItem(props: ChatItemProps) {
     default:
       ChatI = GeneralChatItem;
   }
-  return (
-    <Hoverable onClick={props.onClick}>
-      <ChatI {...props} />
-    </Hoverable>
-  );
+  return <ChatI {...props} />;
 }
