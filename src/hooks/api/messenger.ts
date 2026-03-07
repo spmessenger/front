@@ -15,6 +15,11 @@ export function useFetchContacts() {
         username: "user2",
         avatar_url: "https://api.dicebear.com/7.x/miniavs/svg?seed=2",
       },
+      {
+        id: 3,
+        username: "user3",
+        // avatar_url: "https://api.dicebear.com/7.x/miniavs/svg?seed=3",
+      }
     ]); // TODO: implement
   }, []);
   return contacts;

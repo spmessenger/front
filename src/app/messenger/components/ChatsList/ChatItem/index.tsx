@@ -23,7 +23,7 @@ function GeneralChatItem({ chat, onClick }: ChatItemProps) {
   return (
     <div onClick={() => onClick(chat)} style={{ cursor: "pointer" }}>
       <Flex gap={10} style={{ margin: "8px" }}>
-        {chat.avatar ?? <Avatar size={48} src={chat.avatar_url} />}
+        {chat.avatar ?? <Avatar size={48} src={chat.avatar_url} alt={chat.title} />}
         <Flex justify="space-between" vertical>
           <Text strong>{chat.title}</Text>
           <Text type="secondary">{"last message"}</Text>
