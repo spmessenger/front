@@ -1,5 +1,6 @@
 import React, { Fragment } from "react";
 import { Avatar, Button, Card, Drawer, Flex, Input, Menu, Upload } from "antd";
+import type { InputRef } from "antd";
 import Text from "antd/lib/typography/Text";
 import {
   LoadingOutlined,
@@ -29,8 +30,12 @@ function castContactsToChats(contacts: ContactType[]): ChatType[] {
 
 function SelectedContact({ contact }: { contact: ContactType }) {
   return (
-    <Flex align="center" gap={4} style={{ background: "gray", borderRadius: 16, paddingRight: 6 }}>
-      <Avatar size={24} src={contact.avatar_url} />
+    <Flex
+      align="center"
+      gap={4}
+      style={{ background: "gray", borderRadius: 16, paddingRight: 6 }}
+    >
+      <Avatar size={28} src={contact.avatar_url} />
       <Text>{contact.username}</Text>
     </Flex>
   );
@@ -41,30 +46,31 @@ function CreateGroupModal() {
   const contacts = useFetchContacts();
   const [state, setState] = React.useState<number>(0);
   const [title, setTitle] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
   const [selectedContacts, setSelectedContacts] = React.useState<number[]>([]);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [loading] = React.useState(false);
+  const inputRef = React.useRef<InputRef>(null);
 
-  const onContactClick = (contact: ChatType) => {
-    if (selectedContacts.includes(contact.id)) {
-      setSelectedContacts(selectedContacts.filter((id) => id !== contact.id));
-    } else {
-      setSelectedContacts([...selectedContacts, contact.id]);
-    }
-  };
-  const clearState = () => {
+  const onContactClick = React.useCallback((contact: ChatType) => {
+    setSelectedContacts((prev) =>
+      prev.includes(contact.id)
+        ? prev.filter((id) => id !== contact.id)
+        : [...prev, contact.id]
+    );
+  }, []);
+
+  const clearState = React.useCallback(() => {
     setTitle("");
-    if (inputRef.current) {
-      inputRef.current.input.value = "";
-    }
-  };
+    setSelectedContacts([]);
+    setState(0);
+  }, []);
+
   React.useEffect(() => {
     switch (state) {
       case 0:
         setModal({
           open: true,
-          okText: "Далее",
-          cancelText: "Отмена",
+          okText: "Next",
+          cancelText: "Cancel",
           onOk: () => {
             setState(1);
           },
@@ -82,26 +88,27 @@ function CreateGroupModal() {
               >
                 <button style={{ border: 0, background: "none" }} type="button">
                   {loading ? <LoadingOutlined /> : <PlusOutlined />}
-                  <div style={{ marginTop: 8 }}>Загрузить</div>
+                  <div style={{ marginTop: 8 }}>Upload</div>
                 </button>
               </Upload>
               <Input
-                defaultValue={title}
-                size="middle"
-                placeholder="Название группы"
-                onChange={(props) => setTitle(props.target.value)}
                 ref={inputRef}
+                value={title}
+                size="middle"
+                placeholder="Group name"
+                onChange={(event) => setTitle(event.target.value)}
               />
             </Flex>
           ),
         });
+        inputRef.current?.focus();
         break;
       case 1:
         setModal({
           open: true,
-          title: "Добавить участников",
-          cancelText: "Назад",
-          okText: "Создать",
+          title: "Add members",
+          cancelText: "Back",
+          okText: "Create",
           onCancel: () => setState(0),
           content: (
             <Card
@@ -111,15 +118,13 @@ function CreateGroupModal() {
                 <Flex>
                   <Flex className="selected-contacts" gap={8}>
                     {contacts
-                      .filter((contact: ContactType) =>
-                        selectedContacts.includes(contact.id)
-                      )
-                      .map((contact: ContactType) => (
+                      .filter((contact) => selectedContacts.includes(contact.id))
+                      .map((contact) => (
                         <SelectedContact key={contact.id} contact={contact} />
                       ))}
                   </Flex>
                   <Input
-                    placeholder="Поиск"
+                    placeholder="Search"
                     prefix={<SearchOutlined />}
                     variant="borderless"
                   />
@@ -134,13 +139,17 @@ function CreateGroupModal() {
           ),
         });
         break;
+      default:
+        break;
     }
-  }, [state, selectedContacts]);
+  }, [clearState, contacts, loading, onContactClick, selectedContacts, setModal, state, title]);
+
   return <Fragment />;
 }
 
 function ModalManipulator({ menuKey }: { menuKey: number }) {
   let Manipulator: React.FC = Fragment;
+
   switch (menuKey) {
     case MenuItemKey.CreateGroup:
       Manipulator = CreateGroupModal;
@@ -148,6 +157,7 @@ function ModalManipulator({ menuKey }: { menuKey: number }) {
     default:
       break;
   }
+
   return (
     <Fragment>
       <Manipulator />
@@ -158,17 +168,20 @@ function ModalManipulator({ menuKey }: { menuKey: number }) {
 export default function ControlPanel() {
   const [menuKey, setMenuKey] = React.useState<number>(-1);
   const [open, setOpen] = React.useState(false);
+
   const items = [
-    { key: MenuItemKey.Profile, label: "Мой профиль" },
-    { key: MenuItemKey.CreateGroup, label: "Создать группу" },
-    { key: MenuItemKey.Settings, label: "Настройки" },
+    { key: MenuItemKey.Profile, label: "Profile" },
+    { key: MenuItemKey.CreateGroup, label: "Create group" },
+    { key: MenuItemKey.Settings, label: "Settings" },
   ];
+
   const onClick = ({ key }: { key: string }) => {
     setMenuKey(-1);
     setTimeout(() => {
       setMenuKey(Number(key));
     }, 0);
   };
+
   return (
     <Fragment>
       <ModalManipulator menuKey={menuKey} />

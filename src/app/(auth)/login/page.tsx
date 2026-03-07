@@ -10,7 +10,6 @@ export default function Login() {
   const router = useRouter();
 
   const onFinish = (values: { username: string; password: string }) => {
-    console.log("Success:", values);
     AuthApi.login(values.username, values.password).then(() =>
       router.push("/messenger")
     );
@@ -22,7 +21,7 @@ export default function Login() {
   };
 
   return (
-    <Card title="Войти" style={{ width: 400 }}>
+    <Card title="Sign in" style={{ width: 400 }}>
       <Form
         name="basic"
         labelCol={{ span: 8 }}
@@ -49,11 +48,11 @@ export default function Login() {
         <Flex justify="space-between">
           <FormItem label={null}>
             <Button type="primary" htmlType="submit">
-              Отправить
+              Submit
             </Button>
           </FormItem>
           <Button type="link" href="/register">
-            Регистрация
+            Register
           </Button>
         </Flex>
       </Form>

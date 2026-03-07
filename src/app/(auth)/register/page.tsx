@@ -10,7 +10,6 @@ export default function Register() {
   const router = useRouter();
 
   const onFinish = (values: { username: string; password: string }) => {
-    console.log("Success:", values);
     AuthApi.register(values.username, values.password).then(() =>
       router.push("/messenger")
     );
@@ -22,7 +21,7 @@ export default function Register() {
   };
 
   return (
-    <Card title="Регистрация" style={{ width: 400 }}>
+    <Card title="Register" style={{ width: 400 }}>
       <Form
         name="basic"
         labelCol={{ span: 8 }}
@@ -33,9 +32,9 @@ export default function Register() {
         onFinishFailed={onFinishFailed}
       >
         <FormItem
-          label="Имя пользователя"
+          label="Username"
           name="username"
-          rules={[{ required: true, message: "Заполните имя пользователя!" }]}
+          rules={[{ required: true, message: "Please input your username!" }]}
         >
           <Input />
         </FormItem>
@@ -49,11 +48,11 @@ export default function Register() {
         <Flex justify="space-between">
           <FormItem label={null}>
             <Button type="primary" htmlType="submit">
-              Отправить
+              Submit
             </Button>
           </FormItem>
           <Button type="link" href="/login">
-            Войти
+            Sign in
           </Button>
         </Flex>
       </Form>

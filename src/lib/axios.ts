@@ -1,4 +1,9 @@
 import axios from "axios";
+import type { AxiosError, InternalAxiosRequestConfig } from "axios";
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
 
 const instance = axios.create({
   baseURL: "http://localhost:8000",
@@ -7,13 +12,25 @@ const instance = axios.create({
 
 instance.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.status === 401) {
-      const response = await instance.post("/api/refresh");
-      if (response.status !== 200) {
-        window.location.href = "/login";
+  async (error: AxiosError) => {
+    const requestConfig = error.config as RetryableRequestConfig | undefined;
+
+    if (error.response?.status === 401 && requestConfig && !requestConfig._retry) {
+      requestConfig._retry = true;
+
+      try {
+        await instance.post("/api/refresh");
+        return instance(requestConfig);
+      } catch (refreshError) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+
+        return Promise.reject(refreshError);
       }
     }
+
+    return Promise.reject(error);
   }
 );
 
