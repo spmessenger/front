@@ -8,6 +8,8 @@ export default function Modal() {
     <AntdModal
       title={modal.title}
       open={modal.open}
+      footer={modal.footer}
+      confirmLoading={modal.confirmLoading}
       onOk={modal.onOk}
       okText={modal.okText}
       cancelText={modal.cancelText}

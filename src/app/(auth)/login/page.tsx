@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import AuthApi from "@/lib/api/auth";
+import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
 import { Form, Input, Button, Card, Flex } from "antd";
 import FormItem from "antd/lib/form/FormItem";
@@ -10,9 +10,10 @@ export default function Login() {
   const router = useRouter();
 
   const onFinish = (values: { username: string; password: string }) => {
-    AuthApi.login(values.username, values.password).then(() =>
-      router.push("/messenger")
-    );
+    AuthApi.login(values.username, values.password).then(() => {
+      window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
+      router.push("/messenger");
+    });
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix type

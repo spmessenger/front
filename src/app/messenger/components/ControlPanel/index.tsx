@@ -16,15 +16,18 @@ import {
 import type { GetProp, InputRef, UploadProps } from "antd";
 import Text from "antd/lib/typography/Text";
 import {
+  InfoCircleOutlined,
   LoadingOutlined,
   MoreOutlined,
   PlusOutlined,
   SearchOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { useModalSetter } from "@/hooks/features/ui/modal";
 import { useFetchContacts } from "@/hooks/api/messenger";
 import ChatsList from "../ChatsList";
 import MessengerApi from "@/lib/api/messenger";
+import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import { AvatarUploadPayload, ChatType, ContactType } from "@/lib/types";
 import {
   useChatsSetter,
@@ -816,14 +819,119 @@ function CreateGroupModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ProfileModal({
+  onClose,
+  username,
+  onUpdated,
+}: {
+  onClose: () => void;
+  username: string;
+  onUpdated: (username: string) => void;
+}) {
+  const setModal = useModalSetter();
+  const [draftUsername, setDraftUsername] = React.useState(username);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [showUsernameError, setShowUsernameError] = React.useState(false);
+
+  React.useEffect(() => {
+    setDraftUsername(username);
+  }, [username]);
+
+  React.useEffect(() => {
+    const closeModal = () => {
+      setModal({ clear: true });
+      onClose();
+    };
+
+    const submitProfile = async () => {
+      const normalizedUsername = draftUsername.trim();
+
+      if (!normalizedUsername) {
+        setShowUsernameError(true);
+        return;
+      }
+
+      setSubmitting(true);
+
+      try {
+        const { data } = await AuthApi.updateProfile(normalizedUsername);
+        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
+        onUpdated(data.username);
+        message.success("Profile updated.");
+        closeModal();
+      } catch {
+        message.error("Failed to update profile.");
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    setModal({
+      open: true,
+      title: "Profile",
+      okText: "Save",
+      cancelText: "Cancel",
+      onOk: () => void submitProfile(),
+      onCancel: closeModal,
+      content: (
+        <Flex vertical align="center" gap={20} style={{ padding: "8px 0 4px" }}>
+          <Avatar size={96} icon={<UserOutlined />} />
+          <Flex
+            vertical
+            gap={10}
+            style={{ width: "100%" }}
+          >
+            <Input
+              value={draftUsername}
+              placeholder="Username"
+              status={showUsernameError && !draftUsername.trim() ? "error" : undefined}
+              onChange={(event) => {
+                setDraftUsername(event.target.value);
+                setShowUsernameError(false);
+              }}
+              onPressEnter={() => void submitProfile()}
+              disabled={submitting}
+            />
+            <Flex align="center" gap={6} justify="center">
+              <InfoCircleOutlined style={{ color: "#8c8c8c" }} />
+              <Text type="secondary">
+                Update your username here. Avatar editing is not implemented yet.
+              </Text>
+            </Flex>
+          </Flex>
+        </Flex>
+      ),
+      confirmLoading: submitting,
+    });
+
+    return () => {
+      setModal({ clear: true });
+    };
+  }, [draftUsername, onClose, onUpdated, setModal, showUsernameError, submitting]);
+
+  return <Fragment />;
+}
+
 function ModalManipulator({
   menuKey,
   onClose,
+  username,
+  onProfileUpdated,
 }: {
   menuKey: number;
   onClose: () => void;
+  username: string;
+  onProfileUpdated: (username: string) => void;
 }) {
   switch (menuKey) {
+    case MenuItemKey.Profile:
+      return (
+        <ProfileModal
+          onClose={onClose}
+          username={username}
+          onUpdated={onProfileUpdated}
+        />
+      );
     case MenuItemKey.CreateGroup:
       return <CreateGroupModal onClose={onClose} />;
     default:
@@ -834,6 +942,24 @@ function ModalManipulator({
 export default function ControlPanel() {
   const [menuKey, setMenuKey] = React.useState<number>(-1);
   const [open, setOpen] = React.useState(false);
+  const [username, setUsername] = React.useState("Username");
+
+  React.useEffect(() => {
+    const storedUsername = window.localStorage.getItem(AUTH_USERNAME_STORAGE_KEY);
+
+    if (storedUsername) {
+      setUsername(storedUsername);
+    }
+
+    AuthApi.getProfile()
+      .then(({ data }) => {
+        setUsername(data.username);
+        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
+      })
+      .catch(() => {
+        // Keep the best-known client value if profile bootstrap fails.
+      });
+  }, []);
 
   const items = [
     { key: MenuItemKey.Profile, label: "Profile" },
@@ -855,7 +981,12 @@ export default function ControlPanel() {
 
   return (
     <Fragment>
-      <ModalManipulator menuKey={menuKey} onClose={closeManipulator} />
+      <ModalManipulator
+        menuKey={menuKey}
+        onClose={closeManipulator}
+        username={username}
+        onProfileUpdated={setUsername}
+      />
       <Drawer
         open={open}
         placement="left"
@@ -865,7 +996,7 @@ export default function ControlPanel() {
               size="large"
               src="https://api.dicebear.com/7.x/miniavs/svg?seed=1"
             />
-            <Text strong>Username</Text>
+            <Text strong>{username}</Text>
           </Flex>
         }
         onClose={() => setOpen(false)}

@@ -4,6 +4,11 @@ export interface ContactType {
   avatar_url?: string;
 }
 
+export interface ProfileType {
+  id: number;
+  username: string;
+}
+
 export type ChatKind = "dialog" | "group" | "private";
 
 export interface ChatType {
