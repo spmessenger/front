@@ -3,11 +3,11 @@ import React from "react";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
 import { Form, Input, Button, Card, Flex } from "antd";
-import FormItem from "antd/lib/form/FormItem";
-import InputPassword from "antd/lib/input/Password";
 
 export default function Login() {
   const router = useRouter();
+  const FormItem = Form.Item;
+  const InputPassword = Input.Password;
 
   const onFinish = (values: { username: string; password: string }) => {
     AuthApi.login(values.username, values.password).then(() => {

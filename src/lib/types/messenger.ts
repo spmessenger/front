@@ -26,6 +26,8 @@ export interface ChatMessageType {
   text: string;
   created_at: string;
   is_own: boolean;
+  delivery_status: "pending" | "delivered";
+  client_message_id?: string;
 }
 
 export interface ChatMessageApiType {

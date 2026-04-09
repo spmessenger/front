@@ -7,6 +7,12 @@ import type {
 } from "@/lib/types";
 
 export default class MessengerApi {
+  static getMessagesSocket() {
+    const apiBaseUrl = "http://localhost:8000";
+    const wsBaseUrl = apiBaseUrl.replace(/^http/, "ws");
+    return new WebSocket(`${wsBaseUrl}/api/ws/chats`);
+  }
+
   static getChats() {
     return axios.get("/api/chats");
   }

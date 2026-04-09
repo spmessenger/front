@@ -10,22 +10,22 @@ const characters = [
 
 const features = [
   {
-    icon: "💬",
+    icon: "\u{1F4AC}",
     title: "Instant Messaging",
     description: "Chat with characters in real-time!",
   },
   {
-    icon: "👥",
+    icon: "\u{1F465}",
     title: "All Characters",
     description: "Talk to Cartman, Kyle, Stan & more!",
   },
   {
-    icon: "🙂",
+    icon: "\u{1F642}",
     title: "Classic Quotes",
     description: "Get iconic South Park responses!",
   },
   {
-    icon: "⚡",
+    icon: "\u26A1",
     title: "Super Fast",
     description: "Lightning-fast messaging!",
   },
@@ -38,7 +38,7 @@ export default function Home() {
         <p className={styles.brand}>SOUTH PARK</p>
         <h1 className={styles.title}>Messenger</h1>
         <p className={styles.subtitle}>
-          Chat with your favorite characters! <span>🎭</span>
+          Chat with your favorite characters! <span>{"\u{1F3AD}"}</span>
         </p>
 
         <div className={styles.characters} aria-label="Featured characters">
@@ -56,10 +56,10 @@ export default function Home() {
 
         <div className={styles.actions}>
           <Link className={styles.primaryButton} href="/login">
-            Start Chatting! 🚀
+            Start Chatting! {"\u{1F680}"}
           </Link>
           <Link className={styles.secondaryButton} href="/register">
-            Learn More
+            Learn More {"\u{1F4D6}"}
           </Link>
         </div>
       </section>
