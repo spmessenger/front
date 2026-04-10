@@ -1,6 +1,8 @@
 import axios from "@/lib/axios";
 import type {
   ChatCreationType,
+  ChatFolderReplaceItemType,
+  ChatFolderType,
   ChatMessageApiType,
   ContactType,
   CreateGroupPayload,
@@ -31,5 +33,21 @@ export default class MessengerApi {
 
   static sendMessage(chatId: number, content: string) {
     return axios.post<ChatMessageApiType>(`/api/chats/${chatId}/messages`, { content });
+  }
+
+  static pinChat(chatId: number) {
+    return axios.post<boolean>(`/api/chats/${chatId}/pin`);
+  }
+
+  static unpinChat(chatId: number) {
+    return axios.post<boolean>(`/api/chats/${chatId}/unpin`);
+  }
+
+  static getChatGroups() {
+    return axios.get<ChatFolderType[]>("/api/chat-groups");
+  }
+
+  static replaceChatGroups(groups: ChatFolderReplaceItemType[]) {
+    return axios.put<ChatFolderType[]>("/api/chat-groups", { groups });
   }
 }

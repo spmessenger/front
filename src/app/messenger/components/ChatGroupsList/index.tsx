@@ -1,13 +1,45 @@
-import { Flex } from "antd";
+import { Button, Flex } from "antd";
+import { SettingOutlined } from "@ant-design/icons";
 import ChatGroupItem from "./ChatGroupItem";
 
-export default function ChatGroupsList() {
-  const groups = [{ id: 1, title: "group 1", unread_messages_count: 200 }, { id: 2, title: "group 1", unread_messages_count: 2 }];
+export interface ChatGroupType {
+  id: number;
+  title: string;
+  unread_messages_count: number;
+}
+
+interface ChatGroupsListProps {
+  groups: ChatGroupType[];
+  selectedGroupId: number | null;
+  onSelectGroup?: (groupId: number) => void;
+  onOpenGroupSettings?: () => void;
+}
+
+export default function ChatGroupsList({
+  groups,
+  selectedGroupId,
+  onSelectGroup,
+  onOpenGroupSettings,
+}: ChatGroupsListProps) {
   return (
-    <Flex vertical align="center" gap="14px" style={{ padding: "10px 0" }}>
+    <Flex vertical align="center" gap="10px" style={{ padding: "10px 0" }}>
       {groups.map((group) => (
-        <ChatGroupItem key={group.id} group={group} />
+        <ChatGroupItem
+          key={group.id}
+          group={group}
+          isActive={selectedGroupId === group.id}
+          onSelect={onSelectGroup}
+        />
       ))}
+      <Button
+        type="text"
+        size="small"
+        icon={<SettingOutlined />}
+        title="Group settings"
+        aria-label="Group settings"
+        onClick={onOpenGroupSettings}
+        style={{ color: "#fff" }}
+      />
     </Flex>
   );
 }

@@ -1,19 +1,47 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
-import { Form, Input, Button, Card, Flex } from "antd";
+import { Form, Input, Button, Card, Flex, Alert } from "antd";
+import type { AxiosError } from "axios";
+
+type ApiErrorDetail = {
+  en?: string;
+};
+
+const DEFAULT_LOGIN_ERROR_MESSAGE = "Failed to sign in. Please try again.";
 
 export default function Login() {
   const router = useRouter();
   const FormItem = Form.Item;
   const InputPassword = Input.Password;
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const getLoginErrorMessage = (error: unknown): string => {
+    const axiosError = error as AxiosError<{ detail?: ApiErrorDetail | string }>;
+    const detail = axiosError.response?.data?.detail;
+
+    if (typeof detail === "string" && detail.trim()) {
+      return detail;
+    }
+
+    if (detail && typeof detail === "object" && detail.en?.trim()) {
+      return detail.en;
+    }
+
+    return DEFAULT_LOGIN_ERROR_MESSAGE;
+  };
 
   const onFinish = (values: { username: string; password: string }) => {
-    AuthApi.login(values.username, values.password).then(() => {
-      window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
-      router.push("/messenger");
-    });
+    setLoginError(null);
+    AuthApi.login(values.username, values.password)
+      .then(() => {
+        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
+        router.push("/messenger");
+      })
+      .catch((error: unknown) => {
+        setLoginError(getLoginErrorMessage(error));
+      });
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix type
@@ -32,6 +60,11 @@ export default function Login() {
         onFinish={onFinish}
         onFinishFailed={onFinishFailed}
       >
+        {loginError ? (
+          <FormItem wrapperCol={{ span: 24 }}>
+            <Alert type="error" showIcon message={loginError} />
+          </FormItem>
+        ) : null}
         <FormItem
           label="Username"
           name="username"

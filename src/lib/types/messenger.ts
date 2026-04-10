@@ -18,6 +18,8 @@ export interface ChatType {
   avatar_url?: string;
   last_message?: string;
   last_message_at?: string;
+  unread_messages_count?: number;
+  pin_position?: number;
 }
 
 export interface ChatMessageType {
@@ -65,4 +67,15 @@ export interface CreateGroupPayload {
   title: string;
   participants: number[];
   avatar?: AvatarUploadPayload;
+}
+
+export interface ChatFolderType {
+  id: number;
+  title: string;
+  chat_ids: number[];
+}
+
+export interface ChatFolderReplaceItemType {
+  title: string;
+  chat_ids: number[];
 }
