@@ -2,7 +2,13 @@ import React from "react";
 import type { ContactType } from "@/lib/types";
 import MessengerApi from "@/lib/api/messenger";
 
+type UseFetchContactsResult = {
+  contacts: ContactType[];
+  isLoading: boolean;
+};
+
 export function useFetchContacts() {
+  const [isLoading, setIsLoading] = React.useState(true);
   const [contacts, setContacts] = React.useState<ContactType[]>([]);
 
   React.useEffect(() => {
@@ -24,10 +30,12 @@ export function useFetchContacts() {
               `https://api.dicebear.com/7.x/miniavs/svg?seed=${contact.id}`,
           }))
         );
+        setIsLoading(false);
       } catch (error) {
         if (!ignore) {
           console.error("Failed to fetch available users", error);
           setContacts([]);
+          setIsLoading(false);
         }
       }
     };
@@ -39,5 +47,8 @@ export function useFetchContacts() {
     };
   }, []);
 
-  return contacts;
+  return {
+    contacts,
+    isLoading,
+  } satisfies UseFetchContactsResult;
 }

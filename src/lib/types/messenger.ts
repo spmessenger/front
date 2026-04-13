@@ -7,6 +7,7 @@ export interface ContactType {
 export interface ProfileType {
   id: number;
   username: string;
+  avatar_url?: string;
 }
 
 export type ChatKind = "dialog" | "group" | "private";

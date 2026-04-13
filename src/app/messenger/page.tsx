@@ -402,6 +402,7 @@ export default function Messenger() {
 
   React.useEffect(() => {
     const socket = MessengerApi.getMessagesSocket();
+    const pendingDeliveryTimeouts = pendingDeliveryTimeoutsRef.current;
     socketRef.current = socket;
 
     socket.onopen = () => {
@@ -494,10 +495,10 @@ export default function Messenger() {
         const existingMessages = current[nextMessage.chat_id] ?? [];
 
         if (payload.message.client_message_id) {
-          const timeoutId = pendingDeliveryTimeoutsRef.current.get(payload.message.client_message_id);
+          const timeoutId = pendingDeliveryTimeouts.get(payload.message.client_message_id);
           if (timeoutId) {
             clearTimeout(timeoutId);
-            pendingDeliveryTimeoutsRef.current.delete(payload.message.client_message_id);
+            pendingDeliveryTimeouts.delete(payload.message.client_message_id);
           }
 
           const optimisticMessageIndex = existingMessages.findIndex(
@@ -553,8 +554,8 @@ export default function Messenger() {
     };
 
     return () => {
-      pendingDeliveryTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-      pendingDeliveryTimeoutsRef.current.clear();
+      pendingDeliveryTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+      pendingDeliveryTimeouts.clear();
       socket.close();
       socketRef.current = null;
     };

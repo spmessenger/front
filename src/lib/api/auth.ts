@@ -1,5 +1,5 @@
 import axios from "@/lib/axios";
-import type { ProfileType } from "@/lib/types";
+import type { AvatarUploadPayload, ProfileType } from "@/lib/types";
 
 export const AUTH_USERNAME_STORAGE_KEY = "messenger.auth.username";
 
@@ -16,7 +16,10 @@ export default class AuthApi {
     return axios.get<ProfileType>("/api/profile");
   }
 
-  static updateProfile(username: string) {
-    return axios.patch<ProfileType>("/api/profile", { username });
+  static updateProfile(payload: {
+    username?: string;
+    avatar?: AvatarUploadPayload;
+  }) {
+    return axios.patch<ProfileType>("/api/profile", payload);
   }
 }

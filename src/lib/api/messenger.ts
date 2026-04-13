@@ -1,4 +1,5 @@
 import axios from "@/lib/axios";
+import { WS_BASE_URL } from "@/lib/config";
 import type {
   ChatCreationType,
   ChatFolderReplaceItemType,
@@ -10,9 +11,7 @@ import type {
 
 export default class MessengerApi {
   static getMessagesSocket() {
-    const apiBaseUrl = "http://localhost:8000";
-    const wsBaseUrl = apiBaseUrl.replace(/^http/, "ws");
-    return new WebSocket(`${wsBaseUrl}/api/ws/chats`);
+    return new WebSocket(`${WS_BASE_URL}/api/ws/chats`);
   }
 
   static getChats() {
@@ -25,6 +24,12 @@ export default class MessengerApi {
 
   static createGroup(payload: CreateGroupPayload) {
     return axios.post<ChatCreationType>("/api/chats/group", payload);
+  }
+
+  static createDialog(participantId: number) {
+    return axios.post<ChatCreationType>("/api/chats/dialog", {
+      participant_id: participantId,
+    });
   }
 
   static getChatMessages(chatId: number) {

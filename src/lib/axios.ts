@@ -1,12 +1,13 @@
 import axios from "axios";
 import type { AxiosError, InternalAxiosRequestConfig } from "axios";
+import { API_BASE_URL } from "@/lib/config";
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
 const instance = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 

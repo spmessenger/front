@@ -1,5 +1,4 @@
 import React, { Fragment } from "react";
-import Image from "next/image";
 import {
   Avatar,
   Button,
@@ -8,187 +7,28 @@ import {
   Flex,
   Input,
   Menu,
-  Modal as AntdModal,
-  Progress,
-  Upload,
   message,
 } from "antd";
-import type { GetProp, InputRef, UploadProps } from "antd";
 import Text from "antd/lib/typography/Text";
-import {
-  InfoCircleOutlined,
-  LoadingOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
+import { LoadingOutlined, MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { useModalSetter } from "@/hooks/features/ui/modal";
 import { useFetchContacts } from "@/hooks/api/messenger";
 import ChatsList from "../ChatsList";
 import MessengerApi from "@/lib/api/messenger";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
-import { AvatarUploadPayload, ChatType, ContactType } from "@/lib/types";
+import type { ChatType, ContactType } from "@/lib/types";
 import {
   useChatsSetter,
   useSelectedChatSetter,
 } from "@/hooks/features/messenger/chats";
+import CreateGroupModal from "./CreateGroupModal";
+import ProfileModal from "./ProfileModal";
 
 enum MenuItemKey {
   Profile,
+  CreateDialog,
   CreateGroup,
   Settings,
-}
-
-const MIN_GROUP_NAME_LENGTH = 1;
-type UploadFile = Parameters<GetProp<UploadProps, "beforeUpload">>[0];
-const AVATAR_CROP_SIZE = 280;
-const AVATAR_CROP_STAGE_SIZE = 360;
-const AVATAR_CROP_MIN_SIZE = 96;
-
-async function readImageAsDataUrl(file: File): Promise<{
-  dataUrl: string;
-  width: number;
-  height: number;
-}> {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Failed to read image."));
-        return;
-      }
-
-      resolve(reader.result);
-    };
-
-    reader.onerror = () => {
-      reject(new Error("Failed to read image."));
-    };
-
-    reader.readAsDataURL(file);
-  });
-
-  const dimensions = await new Promise<{ width: number; height: number }>(
-    (resolve, reject) => {
-      const image = new window.Image();
-
-      image.onload = () => {
-        resolve({
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-        });
-      };
-
-      image.onerror = () => {
-        reject(new Error("Failed to load image."));
-      };
-
-      image.src = dataUrl;
-    },
-  );
-
-  return { dataUrl, ...dimensions };
-}
-
-async function renderCroppedAvatar(params: {
-  src: string;
-  width: number;
-  height: number;
-  cropX: number;
-  cropY: number;
-  cropSize: number;
-  imageLeft: number;
-  imageTop: number;
-  imageWidth: number;
-  imageHeight: number;
-}): Promise<string> {
-  const {
-    src,
-    width,
-    cropX,
-    cropY,
-    cropSize,
-    imageLeft,
-    imageTop,
-    imageWidth,
-  } = params;
-  const canvas = document.createElement("canvas");
-  canvas.width = AVATAR_CROP_SIZE;
-  canvas.height = AVATAR_CROP_SIZE;
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Failed to initialize crop canvas.");
-  }
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const nextImage = new window.Image();
-
-    nextImage.onload = () => resolve(nextImage);
-    nextImage.onerror = () => reject(new Error("Failed to load image."));
-    nextImage.src = src;
-  });
-
-  context.clearRect(0, 0, AVATAR_CROP_SIZE, AVATAR_CROP_SIZE);
-  context.save();
-  context.beginPath();
-  context.arc(
-    AVATAR_CROP_SIZE / 2,
-    AVATAR_CROP_SIZE / 2,
-    AVATAR_CROP_SIZE / 2,
-    0,
-    Math.PI * 2,
-  );
-  context.clip();
-
-  const displayScale = imageWidth / width;
-  const sourceX = (cropX - imageLeft) / displayScale;
-  const sourceY = (cropY - imageTop) / displayScale;
-  const sourceSize = cropSize / displayScale;
-
-  context.drawImage(
-    image,
-    sourceX,
-    sourceY,
-    sourceSize,
-    sourceSize,
-    0,
-    0,
-    AVATAR_CROP_SIZE,
-    AVATAR_CROP_SIZE,
-  );
-  context.restore();
-
-  return canvas.toDataURL("image/png");
-}
-
-function clampCropRect(params: {
-  x: number;
-  y: number;
-  size: number;
-  imageLeft: number;
-  imageTop: number;
-  imageWidth: number;
-  imageHeight: number;
-}) {
-  const { x, y, size, imageLeft, imageTop, imageWidth, imageHeight } = params;
-  const maxSize = Math.max(
-    AVATAR_CROP_MIN_SIZE,
-    Math.min(imageWidth, imageHeight),
-  );
-  const nextSize = Math.min(Math.max(size, AVATAR_CROP_MIN_SIZE), maxSize);
-  const nextX = Math.min(
-    Math.max(x, imageLeft),
-    imageLeft + imageWidth - nextSize,
-  );
-  const nextY = Math.min(
-    Math.max(y, imageTop),
-    imageTop + imageHeight - nextSize,
-  );
-
-  return { x: nextX, y: nextY, size: nextSize };
 }
 
 function castContactsToChats(contacts: ContactType[]): ChatType[] {
@@ -200,714 +40,105 @@ function castContactsToChats(contacts: ContactType[]): ChatType[] {
   }));
 }
 
-function SelectedContact({ contact }: { contact: ContactType }) {
-  return (
-    <Flex
-      align="center"
-      gap={4}
-      style={{ background: "gray", borderRadius: 16, paddingRight: 6 }}
-    >
-      <Avatar size={28} src={contact.avatar_url} />
-      <Text>{contact.username}</Text>
-    </Flex>
-  );
-}
-
-function CreateGroupModal({ onClose }: { onClose: () => void }) {
+function CreateDialogModal({ onClose }: { onClose: () => void }) {
   const setModal = useModalSetter();
   const setChats = useChatsSetter();
   const setSelectedChat = useSelectedChatSetter();
-  const contacts = useFetchContacts();
-  const [state, setState] = React.useState<number>(0);
-  const [title, setTitle] = React.useState("");
-  const [selectedContacts, setSelectedContacts] = React.useState<number[]>([]);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [showTitleError, setShowTitleError] = React.useState(false);
-  const [avatarPreview, setAvatarPreview] = React.useState<string>();
-  const [avatarPayload, setAvatarPayload] = React.useState<AvatarUploadPayload>();
-  const [avatarUploadPercent, setAvatarUploadPercent] = React.useState(0);
-  const [avatarUploading, setAvatarUploading] = React.useState(false);
-  const [cropModalOpen, setCropModalOpen] = React.useState(false);
-  const [cropSource, setCropSource] = React.useState<string>();
-  const [cropImageWidth, setCropImageWidth] = React.useState(0);
-  const [cropImageHeight, setCropImageHeight] = React.useState(0);
-  const [cropX, setCropX] = React.useState(0);
-  const [cropY, setCropY] = React.useState(0);
-  const [cropSize, setCropSize] = React.useState(180);
-  const [cropApplying, setCropApplying] = React.useState(false);
-  const inputRef = React.useRef<InputRef>(null);
-  const cropInteractionRef = React.useRef<{
-    mode: "move" | "resize";
-    startClientX: number;
-    startClientY: number;
-    startX: number;
-    startY: number;
-    startSize: number;
-  } | null>(null);
+  const { contacts, isLoading: isContactsLoading } = useFetchContacts();
+  const [search, setSearch] = React.useState("");
+  const [submittingUserId, setSubmittingUserId] = React.useState<number | null>(null);
 
-  const normalizedTitle = title.trim();
-  const hasInvalidTitle = normalizedTitle.length < MIN_GROUP_NAME_LENGTH;
-  const cropDisplayScale =
-    cropImageWidth && cropImageHeight
-      ? Math.min(
-          AVATAR_CROP_STAGE_SIZE / cropImageWidth,
-          AVATAR_CROP_STAGE_SIZE / cropImageHeight,
-        )
-      : 1;
-  const cropRenderWidth = cropImageWidth * cropDisplayScale;
-  const cropRenderHeight = cropImageHeight * cropDisplayScale;
-  const cropImageLeft = (AVATAR_CROP_STAGE_SIZE - cropRenderWidth) / 2;
-  const cropImageTop = (AVATAR_CROP_STAGE_SIZE - cropRenderHeight) / 2;
-
-  const onContactClick = React.useCallback((contact: ChatType) => {
-    setSelectedContacts((prev) =>
-      prev.includes(contact.id)
-        ? prev.filter((id) => id !== contact.id)
-        : [...prev, contact.id],
-    );
-  }, []);
-
-  const clearState = React.useCallback(() => {
-    setTitle("");
-    setSelectedContacts([]);
-    setShowTitleError(false);
-    setAvatarPreview(undefined);
-    setAvatarPayload(undefined);
-    setAvatarUploadPercent(0);
-    setAvatarUploading(false);
-    setCropModalOpen(false);
-    setCropSource(undefined);
-    setCropImageWidth(0);
-    setCropImageHeight(0);
-    setCropX(0);
-    setCropY(0);
-    setCropSize(180);
-    setCropApplying(false);
-    setState(0);
-  }, []);
-
-  const goToMembersStep = React.useCallback(() => {
-    if (hasInvalidTitle) {
-      setShowTitleError(true);
-      return;
+  const filteredContacts = React.useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return contacts;
     }
 
-    setState(1);
-  }, [hasInvalidTitle]);
-
-  const goBackToTitleStep = React.useCallback(() => {
-    setState(0);
-  }, []);
+    return contacts.filter((contact) =>
+      contact.username.toLowerCase().includes(normalizedSearch),
+    );
+  }, [contacts, search]);
 
   const closeModal = React.useCallback(() => {
     setModal({ clear: true });
-    clearState();
     onClose();
-  }, [clearState, onClose, setModal]);
+  }, [onClose, setModal]);
 
-  const submitGroup = React.useCallback(async () => {
-    if (hasInvalidTitle) {
-      setShowTitleError(true);
+  const createDialog = React.useCallback(async (contact: ContactType) => {
+    if (submittingUserId !== null) {
       return;
     }
 
-    if (selectedContacts.length === 0) {
-      message.error("Select at least one member.");
-      return;
-    }
-
-    setSubmitting(true);
-
+    setSubmittingUserId(contact.id);
     try {
-      const { data } = await MessengerApi.createGroup({
-        title: normalizedTitle,
-        participants: selectedContacts,
-        avatar: avatarPayload,
-      });
-
+      const { data } = await MessengerApi.createDialog(contact.id);
       const { data: chats } = await MessengerApi.getChats();
       setChats(chats);
       setSelectedChat(data.chat.id);
+      message.success(`Dialog with ${contact.username} created.`);
       closeModal();
-      message.success("Group created.");
     } catch {
-      message.error("Failed to create group.");
+      message.error("Failed to create dialog.");
     } finally {
-      setSubmitting(false);
+      setSubmittingUserId(null);
     }
-  }, [
-    closeModal,
-    hasInvalidTitle,
-    normalizedTitle,
-    avatarPayload,
-    selectedContacts,
-    setChats,
-    setSelectedChat,
-  ]);
-
-  const beforeAvatarUpload = React.useCallback((file: UploadFile) => {
-    if (!file.type.startsWith("image/")) {
-      message.error("Only image files are allowed.");
-      return Upload.LIST_IGNORE;
-    }
-
-    return true;
-  }, []);
-
-  const resetCropState = React.useCallback(() => {
-    setCropModalOpen(false);
-    setCropSource(undefined);
-    setCropImageWidth(0);
-    setCropImageHeight(0);
-    setCropX(0);
-    setCropY(0);
-    setCropSize(180);
-    setCropApplying(false);
-  }, []);
-
-  const uploadAvatar = React.useCallback<NonNullable<UploadProps["customRequest"]>>(
-    async ({ file, onError, onProgress, onSuccess }) => {
-      setAvatarUploading(true);
-      setAvatarUploadPercent(0);
-      try {
-        const nativeFile = file as File;
-        const total = nativeFile.size || 1;
-        const imageInfo = await new Promise<{
-          dataUrl: string;
-          width: number;
-          height: number;
-        }>((resolve, reject) => {
-          const reader = new FileReader();
-
-          reader.onprogress = (event) => {
-            if (!event.lengthComputable) {
-              return;
-            }
-
-            const percent = Math.round((event.loaded / event.total) * 100);
-            setAvatarUploadPercent(percent);
-            onProgress?.({ percent });
-          };
-
-          reader.onload = async () => {
-            try {
-              if (typeof reader.result !== "string") {
-                reject(new Error("Failed to read image."));
-                return;
-              }
-
-              const dimensions = await readImageAsDataUrl(nativeFile);
-              resolve({
-                dataUrl: reader.result,
-                width: dimensions.width,
-                height: dimensions.height,
-              });
-            } catch (error) {
-              reject(error);
-            }
-          };
-
-          reader.onerror = () => reject(new Error("Failed to read image."));
-          reader.readAsDataURL(nativeFile);
-        });
-
-        setCropSource(imageInfo.dataUrl);
-        setCropImageWidth(imageInfo.width);
-        setCropImageHeight(imageInfo.height);
-        const displayScale = Math.min(
-          AVATAR_CROP_STAGE_SIZE / imageInfo.width,
-          AVATAR_CROP_STAGE_SIZE / imageInfo.height,
-        );
-        const renderWidth = imageInfo.width * displayScale;
-        const renderHeight = imageInfo.height * displayScale;
-        const imageLeft = (AVATAR_CROP_STAGE_SIZE - renderWidth) / 2;
-        const imageTop = (AVATAR_CROP_STAGE_SIZE - renderHeight) / 2;
-        const initialSize = Math.max(
-          AVATAR_CROP_MIN_SIZE,
-          Math.min(renderWidth, renderHeight) * 0.7,
-        );
-        setCropSize(initialSize);
-        setCropX(imageLeft + (renderWidth - initialSize) / 2);
-        setCropY(imageTop + (renderHeight - initialSize) / 2);
-        setCropModalOpen(true);
-        setAvatarUploadPercent(100);
-        setAvatarUploading(false);
-        onProgress?.({ percent: 100, total, loaded: total });
-        onSuccess?.(imageInfo.dataUrl);
-      } catch (error) {
-        const uploadError =
-          error instanceof Error ? error : new Error("Failed to upload avatar.");
-        setAvatarUploading(false);
-        setAvatarUploadPercent(0);
-        onError?.(uploadError);
-        message.error(uploadError.message);
-      }
-    },
-    [],
-  );
+  }, [closeModal, setChats, setSelectedChat, submittingUserId]);
 
   React.useEffect(() => {
-    if (!cropModalOpen) {
-      return;
-    }
-
-    const onPointerMove = (event: PointerEvent) => {
-      const interaction = cropInteractionRef.current;
-
-      if (!interaction) {
-        return;
-      }
-
-      if (interaction.mode === "move") {
-        const nextRect = clampCropRect({
-          x: interaction.startX + (event.clientX - interaction.startClientX),
-          y: interaction.startY + (event.clientY - interaction.startClientY),
-          size: cropSize,
-          imageLeft: cropImageLeft,
-          imageTop: cropImageTop,
-          imageWidth: cropRenderWidth,
-          imageHeight: cropRenderHeight,
-        });
-
-        setCropX(nextRect.x);
-        setCropY(nextRect.y);
-        return;
-      }
-
-      const delta = Math.max(
-        event.clientX - interaction.startClientX,
-        event.clientY - interaction.startClientY,
-      );
-      const nextRect = clampCropRect({
-        x: interaction.startX,
-        y: interaction.startY,
-        size: interaction.startSize + delta,
-        imageLeft: cropImageLeft,
-        imageTop: cropImageTop,
-        imageWidth: cropRenderWidth,
-        imageHeight: cropRenderHeight,
-      });
-
-      setCropX(nextRect.x);
-      setCropY(nextRect.y);
-      setCropSize(nextRect.size);
-    };
-
-    const onPointerUp = () => {
-      cropInteractionRef.current = null;
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [cropImageLeft, cropImageTop, cropModalOpen, cropRenderHeight, cropRenderWidth, cropSize]);
-
-  const startCropMove = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      cropInteractionRef.current = {
-        mode: "move",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: cropX,
-        startY: cropY,
-        startSize: cropSize,
-      };
-    },
-    [cropSize, cropX, cropY],
-  );
-
-  const startCropResize = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      cropInteractionRef.current = {
-        mode: "resize",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: cropX,
-        startY: cropY,
-        startSize: cropSize,
-      };
-    },
-    [cropSize, cropX, cropY],
-  );
-
-  const applyAvatarCrop = React.useCallback(async () => {
-    if (!cropSource || !cropImageWidth || !cropImageHeight) {
-      return;
-    }
-
-    setCropApplying(true);
-
-    try {
-      const croppedAvatar = await renderCroppedAvatar({
-        src: cropSource,
-        width: cropImageWidth,
-        height: cropImageHeight,
-        cropX,
-        cropY,
-        cropSize,
-        imageLeft: cropImageLeft,
-        imageTop: cropImageTop,
-        imageWidth: cropRenderWidth,
-        imageHeight: cropRenderHeight,
-      });
-
-      setAvatarPreview(croppedAvatar);
-      setAvatarPayload({
-        data_url: cropSource,
-        stage_size: AVATAR_CROP_STAGE_SIZE,
-        crop_x: cropX,
-        crop_y: cropY,
-        crop_size: cropSize,
-      });
-      resetCropState();
-    } catch (error) {
-      setCropApplying(false);
-      message.error(
-        error instanceof Error ? error.message : "Failed to apply avatar crop.",
-      );
-    }
-  }, [
-    cropImageHeight,
-    cropImageLeft,
-    cropImageTop,
-    cropImageWidth,
-    cropRenderHeight,
-    cropRenderWidth,
-    cropSize,
-    cropSource,
-    cropX,
-    cropY,
-    resetCropState,
-  ]);
-
-  React.useEffect(() => {
-    if (state === 0) {
-      setModal({
-        open: true,
-        title: "",
-        okText: "Next",
-        cancelText: "Cancel",
-        onOk: goToMembersStep,
-        onCancel: closeModal,
-        content: (
-          <Flex gap={10} align="center" justify="center">
-            <Upload
-              name="avatar"
-              accept="image/*"
-              listType="picture-circle"
-              className="avatar-uploader"
-              showUploadList={false}
-              maxCount={1}
-              beforeUpload={beforeAvatarUpload}
-              customRequest={uploadAvatar}
-            >
-              <button
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: "50%",
-                  border: "1px dashed #d9d9d9",
-                  background: "#fafafa",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  padding: 0,
-                  cursor: "pointer",
-                }}
-                type="button"
-              >
-                {avatarPreview ? (
-                  <Image
-                    src={avatarPreview}
-                    alt="Group avatar preview"
-                    width={96}
-                    height={96}
-                    style={{ objectFit: "cover", width: "100%", height: "100%" }}
-                  />
-                ) : avatarUploading ? (
-                  <Progress
-                    type="circle"
-                    percent={avatarUploadPercent}
-                    size={64}
-                    format={(percent) => `${percent ?? 0}%`}
-                  />
-                ) : (
-                  <Flex vertical align="center" gap={6}>
-                    {submitting ? <LoadingOutlined /> : <PlusOutlined />}
-                    <Text type="secondary">Upload</Text>
-                  </Flex>
-                )}
-              </button>
-            </Upload>
-            <Flex vertical style={{ width: 260 }}>
-              <Input
-                ref={inputRef}
-                value={title}
-                size="middle"
-                placeholder="Group name"
-                status={showTitleError && hasInvalidTitle ? "error" : undefined}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  setShowTitleError(false);
-                }}
-                minLength={MIN_GROUP_NAME_LENGTH}
-              />
-            </Flex>
-          </Flex>
-        ),
-      });
-
-      return;
-    }
-
-    if (state === 1) {
-      setModal({
-        open: true,
-        cancelText: "Back",
-        okText: "Create",
-        title: "Add members",
-        onCancel: goBackToTitleStep,
-        onOk: () => void submitGroup(),
-        content: (
-          <Card
-            style={{ boxShadow: "none" }}
-            variant="borderless"
-            title={
-              <Flex>
-                <Flex className="selected-contacts" gap={8}>
-                  {contacts
-                    .filter((contact) => selectedContacts.includes(contact.id))
-                    .map((contact) => (
-                      <SelectedContact key={contact.id} contact={contact} />
-                    ))}
-                </Flex>
-                <Input
-                  placeholder="Search"
-                  prefix={<SearchOutlined />}
-                  variant="borderless"
-                />
-              </Flex>
-            }
-          >
-            <ChatsList
-              onClick={onContactClick}
-              chats={castContactsToChats(contacts)}
-            />
-          </Card>
-        ),
-      });
-    }
-  }, [
-    closeModal,
-    contacts,
-    goBackToTitleStep,
-    goToMembersStep,
-    hasInvalidTitle,
-    avatarPreview,
-    avatarUploadPercent,
-    avatarUploading,
-    onContactClick,
-    selectedContacts,
-    setModal,
-    showTitleError,
-    state,
-    submitting,
-    submitGroup,
-    title,
-    beforeAvatarUpload,
-    uploadAvatar,
-  ]);
-
-  React.useEffect(() => {
-    if (state !== 0) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
-
-    return () => window.clearTimeout(timeout);
-  }, [state]);
-
-  return (
-    <Fragment>
-      <AntdModal
-        title="Adjust avatar"
-        open={cropModalOpen}
-        onCancel={resetCropState}
-        onOk={() => void applyAvatarCrop()}
-        okText="Apply"
-        cancelText="Cancel"
-        confirmLoading={cropApplying}
-        maskClosable={!cropApplying}
-        closable={!cropApplying}
-      >
-        <Flex vertical gap={20}>
-          <Flex justify="center">
-            <div
-              style={{
-                width: AVATAR_CROP_STAGE_SIZE,
-                height: AVATAR_CROP_STAGE_SIZE,
-                overflow: "hidden",
-                position: "relative",
-                background: "#1f1f1f",
-                borderRadius: 12,
-              }}
-            >
-              {cropSource ? (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "50%",
-                    width: cropRenderWidth,
-                    height: cropRenderHeight,
-                    transform: "translate(-50%, -50%)",
-                    backgroundImage: `url(${cropSource})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
-              ) : null}
-              <div
-                onPointerDown={startCropMove}
-                style={{
-                  position: "absolute",
-                  left: cropX,
-                  top: cropY,
-                  width: cropSize,
-                  height: cropSize,
-                  borderRadius: "50%",
-                  cursor: "grab",
-                  boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.48)",
-                  border: "2px solid rgba(255, 255, 255, 0.9)",
-                  backdropFilter: "brightness(1.05)",
-                }}
-              >
-                <div
-                  onPointerDown={startCropResize}
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    bottom: 10,
-                    width: 18,
-                    height: 18,
-                    borderRadius: "50%",
-                    background: "#ffffff",
-                    border: "2px solid #1677ff",
-                    cursor: "nwse-resize",
-                  }}
-                />
-              </div>
-            </div>
-          </Flex>
-          <Text type="secondary">
-            Drag the circle to reposition the crop. Drag the white handle to resize it.
-          </Text>
-        </Flex>
-      </AntdModal>
-    </Fragment>
-  );
-}
-
-function ProfileModal({
-  onClose,
-  username,
-  onUpdated,
-}: {
-  onClose: () => void;
-  username: string;
-  onUpdated: (username: string) => void;
-}) {
-  const setModal = useModalSetter();
-  const [draftUsername, setDraftUsername] = React.useState(username);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [showUsernameError, setShowUsernameError] = React.useState(false);
-
-  React.useEffect(() => {
-    setDraftUsername(username);
-  }, [username]);
-
-  React.useEffect(() => {
-    const closeModal = () => {
-      setModal({ clear: true });
-      onClose();
-    };
-
-    const submitProfile = async () => {
-      const normalizedUsername = draftUsername.trim();
-
-      if (!normalizedUsername) {
-        setShowUsernameError(true);
-        return;
-      }
-
-      setSubmitting(true);
-
-      try {
-        const { data } = await AuthApi.updateProfile(normalizedUsername);
-        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
-        onUpdated(data.username);
-        message.success("Profile updated.");
-        closeModal();
-      } catch {
-        message.error("Failed to update profile.");
-      } finally {
-        setSubmitting(false);
-      }
-    };
+    const chats = castContactsToChats(filteredContacts);
 
     setModal({
       open: true,
-      title: "Profile",
-      okText: "Save",
-      cancelText: "Cancel",
-      onOk: () => void submitProfile(),
+      title: "Create dialog",
+      footer: null,
       onCancel: closeModal,
       content: (
-        <Flex vertical align="center" gap={20} style={{ padding: "8px 0 4px" }}>
-          <Avatar size={96} icon={<UserOutlined />} />
-          <Flex
-            vertical
-            gap={10}
-            style={{ width: "100%" }}
-          >
+        <Card
+          style={{ boxShadow: "none" }}
+          variant="borderless"
+          title={
             <Input
-              value={draftUsername}
-              placeholder="Username"
-              status={showUsernameError && !draftUsername.trim() ? "error" : undefined}
-              onChange={(event) => {
-                setDraftUsername(event.target.value);
-                setShowUsernameError(false);
-              }}
-              onPressEnter={() => void submitProfile()}
-              disabled={submitting}
+              placeholder="Search user"
+              prefix={<SearchOutlined />}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
-            <Flex align="center" gap={6} justify="center">
-              <InfoCircleOutlined style={{ color: "#8c8c8c" }} />
-              <Text type="secondary">
-                Update your username here. Avatar editing is not implemented yet.
-              </Text>
+          }
+        >
+          {isContactsLoading ? (
+            <Flex justify="center" style={{ padding: "24px 0" }}>
+              <LoadingOutlined spin />
             </Flex>
-          </Flex>
-        </Flex>
-      ),
-      confirmLoading: submitting,
-    });
+          ) : chats.length > 0 ? (
+            <ChatsList
+              chats={chats}
+              onClick={(chat) => {
+                const contact = filteredContacts.find(
+                  (nextContact) => nextContact.id === chat.id,
+                );
 
-    return () => {
-      setModal({ clear: true });
-    };
-  }, [draftUsername, onClose, onUpdated, setModal, showUsernameError, submitting]);
+                if (!contact || submittingUserId !== null) {
+                  return;
+                }
+
+                void createDialog(contact);
+              }}
+            />
+          ) : (
+            <Text type="secondary">No users found.</Text>
+          )}
+        </Card>
+      ),
+    });
+  }, [
+    closeModal,
+    createDialog,
+    filteredContacts,
+    search,
+    setModal,
+    submittingUserId,
+    isContactsLoading,
+  ]);
 
   return <Fragment />;
 }
@@ -916,12 +147,14 @@ function ModalManipulator({
   menuKey,
   onClose,
   username,
+  avatarUrl,
   onProfileUpdated,
 }: {
   menuKey: number;
   onClose: () => void;
   username: string;
-  onProfileUpdated: (username: string) => void;
+  avatarUrl?: string;
+  onProfileUpdated: (profile: { username: string; avatar_url?: string }) => void;
 }) {
   switch (menuKey) {
     case MenuItemKey.Profile:
@@ -929,9 +162,12 @@ function ModalManipulator({
         <ProfileModal
           onClose={onClose}
           username={username}
+          avatarUrl={avatarUrl}
           onUpdated={onProfileUpdated}
         />
       );
+    case MenuItemKey.CreateDialog:
+      return <CreateDialogModal onClose={onClose} />;
     case MenuItemKey.CreateGroup:
       return <CreateGroupModal onClose={onClose} />;
     default:
@@ -943,6 +179,7 @@ export default function ControlPanel() {
   const [menuKey, setMenuKey] = React.useState<number>(-1);
   const [open, setOpen] = React.useState(false);
   const [username, setUsername] = React.useState("Username");
+  const [avatarUrl, setAvatarUrl] = React.useState<string | undefined>();
 
   React.useEffect(() => {
     const storedUsername = window.localStorage.getItem(AUTH_USERNAME_STORAGE_KEY);
@@ -954,6 +191,7 @@ export default function ControlPanel() {
     AuthApi.getProfile()
       .then(({ data }) => {
         setUsername(data.username);
+        setAvatarUrl(data.avatar_url);
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
       })
       .catch(() => {
@@ -963,6 +201,7 @@ export default function ControlPanel() {
 
   const items = [
     { key: MenuItemKey.Profile, label: "Profile" },
+    { key: MenuItemKey.CreateDialog, label: "Create dialog" },
     { key: MenuItemKey.CreateGroup, label: "Create group" },
     { key: MenuItemKey.Settings, label: "Settings" },
   ];
@@ -985,7 +224,11 @@ export default function ControlPanel() {
         menuKey={menuKey}
         onClose={closeManipulator}
         username={username}
-        onProfileUpdated={setUsername}
+        avatarUrl={avatarUrl}
+        onProfileUpdated={(profile) => {
+          setUsername(profile.username);
+          setAvatarUrl(profile.avatar_url);
+        }}
       />
       <Drawer
         open={open}
@@ -994,7 +237,7 @@ export default function ControlPanel() {
           <Flex align="center">
             <Avatar
               size="large"
-              src="https://api.dicebear.com/7.x/miniavs/svg?seed=1"
+              src={avatarUrl || "https://api.dicebear.com/7.x/miniavs/svg?seed=1"}
             />
             <Text strong>{username}</Text>
           </Flex>

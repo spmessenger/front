@@ -1,13 +1,9 @@
 "use client";
 import React, { useState } from "react";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
+import { extractApiErrorMessage } from "@/lib/errors/api";
 import { useRouter } from "next/navigation";
 import { Form, Input, Button, Card, Flex, Alert } from "antd";
-import type { AxiosError } from "axios";
-
-type ApiErrorDetail = {
-  en?: string;
-};
 
 const DEFAULT_LOGIN_ERROR_MESSAGE = "Failed to sign in. Please try again.";
 
@@ -17,21 +13,6 @@ export default function Login() {
   const InputPassword = Input.Password;
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const getLoginErrorMessage = (error: unknown): string => {
-    const axiosError = error as AxiosError<{ detail?: ApiErrorDetail | string }>;
-    const detail = axiosError.response?.data?.detail;
-
-    if (typeof detail === "string" && detail.trim()) {
-      return detail;
-    }
-
-    if (detail && typeof detail === "object" && detail.en?.trim()) {
-      return detail.en;
-    }
-
-    return DEFAULT_LOGIN_ERROR_MESSAGE;
-  };
-
   const onFinish = (values: { username: string; password: string }) => {
     setLoginError(null);
     AuthApi.login(values.username, values.password)
@@ -40,7 +21,7 @@ export default function Login() {
         router.push("/messenger");
       })
       .catch((error: unknown) => {
-        setLoginError(getLoginErrorMessage(error));
+        setLoginError(extractApiErrorMessage(error, DEFAULT_LOGIN_ERROR_MESSAGE));
       });
   };
 
