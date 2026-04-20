@@ -36,8 +36,11 @@ export default class MessengerApi {
     return axios.get<ChatMessageApiType[]>(`/api/chats/${chatId}/messages`);
   }
 
-  static sendMessage(chatId: number, content: string) {
-    return axios.post<ChatMessageApiType>(`/api/chats/${chatId}/messages`, { content });
+  static sendMessage(chatId: number, content: string, referenceMessageId?: number) {
+    return axios.post<ChatMessageApiType>(`/api/chats/${chatId}/messages`, {
+      content,
+      reference_message_id: referenceMessageId,
+    });
   }
 
   static pinChat(chatId: number) {

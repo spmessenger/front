@@ -31,11 +31,15 @@ export interface ChatMessageType {
   is_own: boolean;
   delivery_status: "pending" | "delivered";
   client_message_id?: string;
+  reference_message_id?: number;
+  reference_author?: string;
+  reference_content?: string;
 }
 
 export interface ChatMessageApiType {
   id: number;
   chat_id: number;
+  reference_message_id?: number | null;
   content: string;
   created_at_timestamp: number;
   is_own: boolean;

@@ -1,7 +1,23 @@
 "use client";
 import React, { Fragment } from "react";
-import { Avatar, Button, Input, Layout, Select, Typography, message as antdMessage } from "antd";
-import { CheckOutlined, HomeFilled, LoadingOutlined, SmileOutlined } from "@ant-design/icons";
+import {
+  Avatar,
+  Button,
+  Dropdown,
+  Input,
+  Layout,
+  Select,
+  Typography,
+  message as antdMessage,
+} from "antd";
+import {
+  CheckOutlined,
+  CloseOutlined,
+  HomeFilled,
+  LoadingOutlined,
+  SmileOutlined,
+} from "@ant-design/icons";
+import type { MenuProps } from "antd";
 import { Content, Header, Footer } from "antd/lib/layout/layout";
 import Sider from "antd/lib/layout/Sider";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
@@ -30,6 +46,8 @@ import type {
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const REPLY_PREVIEW_MAX_LENGTH = 100;
+const SCROLL_HIGHLIGHT_DURATION_MS = 1800;
 
 type ChatSocketResponse =
   | {
@@ -63,7 +81,26 @@ function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
     created_at: new Date(message.created_at_timestamp * 1000).toISOString(),
     is_own: message.is_own,
     delivery_status: "delivered",
+    reference_message_id: message.reference_message_id ?? undefined,
   };
+}
+
+function shortenText(text: string, maxLength: number = REPLY_PREVIEW_MAX_LENGTH): string {
+  const normalizedText = text.replace(/\s+/g, " ").trim();
+  if (normalizedText.length <= maxLength) {
+    return normalizedText;
+  }
+  return `${normalizedText.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function resolveMessageAuthor(
+  message: Pick<ChatMessageType, "is_own">,
+  selectedChatTitle: string | undefined,
+): string {
+  if (message.is_own) {
+    return "You";
+  }
+  return selectedChatTitle || "User";
 }
 
 function createClientMessageId(): string {
@@ -262,6 +299,13 @@ export default function Messenger() {
   const selectedChatId = selectedChat?.id ?? null;
   const selectedChatIdRef = React.useRef<number | null>(selectedChatId);
   const selectedMessages = useChatMessages(selectedChatId);
+  const selectedMessagesById = React.useMemo(() => {
+    const messagesById = new Map<number, ChatMessageType>();
+    selectedMessages.forEach((message) => {
+      messagesById.set(message.id, message);
+    });
+    return messagesById;
+  }, [selectedMessages]);
   const setChatMessages = useChatMessagesSetter();
   const [chatFolders, setChatFolders] = React.useState<ChatFolderType[]>([]);
   const [selectedFolderId, setSelectedFolderId] = React.useState<number>(ALL_CHATS_GROUP_ID);
@@ -270,9 +314,13 @@ export default function Messenger() {
   const [isOlderMessagesLoading, setIsOlderMessagesLoading] = React.useState(false);
   const [hasMoreMessagesByChat, setHasMoreMessagesByChat] = React.useState<Record<number, boolean>>({});
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
+  const [replyTarget, setReplyTarget] = React.useState<ChatMessageType | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<number | null>(null);
   const [isSocketConnected, setIsSocketConnected] = React.useState(false);
   const socketRef = React.useRef<WebSocket | null>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const messageElementsRef = React.useRef<Map<number, HTMLDivElement>>(new Map());
+  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const olderLoadScrollRestoreRef = React.useRef<{
     chatId: number;
     previousScrollTop: number;
@@ -564,9 +612,19 @@ export default function Messenger() {
   React.useEffect(() => {
     setDraft("");
     setIsEmojiPickerOpen(false);
+    setReplyTarget(null);
+    setHighlightedMessageId(null);
     setIsOlderMessagesLoading(false);
     olderLoadScrollRestoreRef.current = null;
   }, [selectedChatId]);
+
+  React.useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -655,6 +713,7 @@ export default function Messenger() {
       return;
     }
 
+    const referenceMessageId = replyTarget?.id;
     const clientMessageId = createClientMessageId();
     const optimisticMessage: ChatMessageType = {
       id: -Date.now(),
@@ -664,6 +723,7 @@ export default function Messenger() {
       is_own: true,
       delivery_status: "delivered",
       client_message_id: clientMessageId,
+      reference_message_id: referenceMessageId,
     };
     setChatMessages((current) => ({
       ...current,
@@ -686,6 +746,7 @@ export default function Messenger() {
         action: "send_message",
         chat_id: selectedChatId,
         content: text,
+        reference_message_id: referenceMessageId,
         client_message_id: clientMessageId,
       }),
     );
@@ -735,7 +796,27 @@ export default function Messenger() {
     pendingDeliveryTimeoutsRef.current.set(clientMessageId, timeoutId);
 
     setDraft("");
+    setReplyTarget(null);
     setIsEmojiPickerOpen(false);
+  }
+
+  function handleScrollToMessage(messageId: number) {
+    const targetElement = messageElementsRef.current.get(messageId);
+    if (!targetElement) {
+      antdMessage.info("Referenced message is not loaded yet.");
+      return;
+    }
+
+    targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMessageId(messageId);
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMessageId((currentHighlightedId) =>
+        currentHighlightedId === messageId ? null : currentHighlightedId,
+      );
+    }, SCROLL_HIGHLIGHT_DURATION_MS);
   }
 
   React.useEffect(() => {
@@ -912,6 +993,22 @@ export default function Messenger() {
                   const shouldShowDateDivider =
                     !previousMessage ||
                     !isSameCalendarDay(previousMessage.created_at, chatMessage.created_at);
+                  const referencedMessage = chatMessage.reference_message_id
+                    ? selectedMessagesById.get(chatMessage.reference_message_id)
+                    : null;
+                  const referenceAuthor = referencedMessage
+                    ? resolveMessageAuthor(referencedMessage, selectedChat?.title)
+                    : chatMessage.reference_author ?? "User";
+                  const referenceContent = referencedMessage
+                    ? shortenText(referencedMessage.text)
+                    : chatMessage.reference_content ?? "Message";
+                  const hasReference = Boolean(chatMessage.reference_message_id);
+                  const messageMenuItems: MenuProps["items"] = [
+                    {
+                      key: "answer",
+                      label: "Answer",
+                    },
+                  ];
 
                   return (
                     <Fragment key={chatMessage.id}>
@@ -931,40 +1028,103 @@ export default function Messenger() {
                           </Text>
                         </div>
                       ) : null}
-                      <div
-                        style={{
-                          alignSelf: chatMessage.is_own ? "flex-start" : "flex-end",
-                          maxWidth: "70%",
-                          background: chatMessage.is_own ? "#91caff" : "#ffffff",
-                          color: "#001529",
-                          borderRadius: "16px",
-                          padding: "10px 14px",
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
+                      <Dropdown
+                        trigger={["contextMenu"]}
+                        menu={{
+                          items: messageMenuItems,
+                          onClick: ({ key, domEvent }) => {
+                            domEvent.stopPropagation();
+                            if (key === "answer") {
+                              setReplyTarget(chatMessage);
+                            }
+                          },
                         }}
                       >
-                        <div style={{ whiteSpace: "pre-wrap" }}>{chatMessage.text}</div>
-                        <Text
+                        <div
+                          ref={(element) => {
+                            if (element) {
+                              messageElementsRef.current.set(chatMessage.id, element);
+                            } else {
+                              messageElementsRef.current.delete(chatMessage.id);
+                            }
+                          }}
                           style={{
-                            display: "block",
-                            marginTop: "6px",
-                            color: "rgba(0, 21, 41, 0.65)",
-                            fontSize: "12px",
+                            alignSelf: chatMessage.is_own ? "flex-start" : "flex-end",
+                            maxWidth: "70%",
+                            background: chatMessage.is_own ? "#91caff" : "#ffffff",
+                            color: "#001529",
+                            borderRadius: "16px",
+                            padding: "10px 14px",
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                            cursor: "context-menu",
+                            outline:
+                              highlightedMessageId === chatMessage.id
+                                ? "2px solid #faad14"
+                                : "2px solid transparent",
+                            boxShadow:
+                              highlightedMessageId === chatMessage.id
+                                ? "0 0 0 4px rgba(250, 173, 20, 0.25)"
+                                : "none",
+                            transition: "outline-color 0.25s ease, box-shadow 0.25s ease",
                           }}
                         >
-                          {new Date(chatMessage.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                          {chatMessage.is_own ? (
-                            chatMessage.delivery_status === "pending" ? (
-                              <LoadingOutlined style={{ marginLeft: "6px" }} spin />
-                            ) : (
-                              <CheckOutlined style={{ marginLeft: "6px" }} />
-                            )
+                          {hasReference ? (
+                            <div
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (chatMessage.reference_message_id) {
+                                  handleScrollToMessage(chatMessage.reference_message_id);
+                                }
+                              }}
+                              style={{
+                                borderLeft: "3px solid #69b1ff",
+                                background: "rgba(0, 21, 41, 0.08)",
+                                borderRadius: "8px",
+                                padding: "6px 10px",
+                                marginBottom: "8px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  display: "block",
+                                  color: "#1677ff",
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                {referenceAuthor}
+                              </Text>
+                              <Text style={{ color: "rgba(0, 21, 41, 0.75)", fontSize: "13px" }}>
+                                {referenceContent}
+                              </Text>
+                            </div>
                           ) : null}
-                        </Text>
-                      </div>
+                          <div style={{ whiteSpace: "pre-wrap" }}>{chatMessage.text}</div>
+                          <Text
+                            style={{
+                              display: "block",
+                              marginTop: "6px",
+                              color: "rgba(0, 21, 41, 0.65)",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {new Date(chatMessage.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                            {chatMessage.is_own ? (
+                              chatMessage.delivery_status === "pending" ? (
+                                <LoadingOutlined style={{ marginLeft: "6px" }} spin />
+                              ) : (
+                                <CheckOutlined style={{ marginLeft: "6px" }} />
+                              )
+                            ) : null}
+                          </Text>
+                        </div>
+                      </Dropdown>
                     </Fragment>
                   );
                 })}
@@ -986,6 +1146,45 @@ export default function Messenger() {
                 minWidth: 0,
               }}
             >
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "flex-end",
+                  minWidth: 0,
+                }}
+              >
+                {replyTarget ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "stretch",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      gap: "10px",
+                      padding: "8px 10px",
+                      borderRadius: "10px",
+                      background: "rgba(0, 21, 41, 0.25)",
+                      color: "#fff",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <Text style={{ display: "block", color: "#69b1ff", fontWeight: 600 }}>
+                        {`In reply to ${resolveMessageAuthor(replyTarget, selectedChat?.title)}`}
+                      </Text>
+                      <Text style={{ color: "rgba(255, 255, 255, 0.85)" }}>
+                        {shortenText(replyTarget.text)}
+                      </Text>
+                    </div>
+                    <Button
+                      type="text"
+                      icon={<CloseOutlined />}
+                      onClick={() => setReplyTarget(null)}
+                      style={{ color: "rgba(255, 255, 255, 0.85)" }}
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div
                 style={{
                   display: "flex",
