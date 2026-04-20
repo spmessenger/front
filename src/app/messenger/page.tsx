@@ -3,6 +3,7 @@ import React, { Fragment } from "react";
 import {
   Avatar,
   Button,
+  Checkbox,
   Dropdown,
   Input,
   Layout,
@@ -82,6 +83,12 @@ function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
     is_own: message.is_own,
     delivery_status: "delivered",
     reference_message_id: message.reference_message_id ?? undefined,
+    reference_author: message.reference_author ?? undefined,
+    reference_content: message.reference_content ?? undefined,
+    forwarded_from_message_id: message.forwarded_from_message_id ?? undefined,
+    forwarded_from_author: message.forwarded_from_author ?? undefined,
+    forwarded_from_author_avatar_url: message.forwarded_from_author_avatar_url ?? undefined,
+    forwarded_from_content: message.forwarded_from_content ?? undefined,
   };
 }
 
@@ -176,6 +183,224 @@ interface GroupSettingsModalContentProps {
   groups: ChatFolderType[];
   onSave: (groups: ChatFolderReplaceItemType[]) => void;
   onCancel: () => void;
+}
+
+interface MessageComposerProps {
+  isSocketConnected: boolean;
+  replyTarget: ChatMessageType | null;
+  selectedChatTitle: string | undefined;
+  onCancelReply: () => void;
+  onSendMessage: (text: string) => boolean;
+}
+
+interface ForwardMessageModalContentProps {
+  chats: ChatType[];
+  selectedChatId: number | null;
+  sourceMessage: ChatMessageType;
+  onCancel: () => void;
+  onConfirm: (chatIds: number[]) => void;
+}
+
+function MessageComposer({
+  isSocketConnected,
+  replyTarget,
+  selectedChatTitle,
+  onCancelReply,
+  onSendMessage,
+}: MessageComposerProps) {
+  const [draft, setDraft] = React.useState("");
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
+
+  function appendEmoji(emojiData: EmojiClickData) {
+    setDraft((currentDraft) => `${currentDraft}${emojiData.emoji}`);
+    setIsEmojiPickerOpen(false);
+  }
+
+  function handleSendClick() {
+    const text = draft.trim();
+    if (!text) {
+      return;
+    }
+    const didSend = onSendMessage(text);
+    if (!didSend) {
+      return;
+    }
+    setDraft("");
+    setIsEmojiPickerOpen(false);
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-end",
+          minWidth: 0,
+        }}
+      >
+        {replyTarget ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "stretch",
+              justifyContent: "space-between",
+              width: "100%",
+              gap: "10px",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              background: "rgba(0, 21, 41, 0.25)",
+              color: "#fff",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <Text style={{ display: "block", color: "#69b1ff", fontWeight: 600 }}>
+                {`In reply to ${resolveMessageAuthor(replyTarget, selectedChatTitle)}`}
+              </Text>
+              <Text style={{ color: "rgba(255, 255, 255, 0.85)" }}>
+                {shortenText(replyTarget.text)}
+              </Text>
+            </div>
+            <Button
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={onCancelReply}
+              style={{ color: "rgba(255, 255, 255, 0.85)" }}
+            />
+          </div>
+        ) : null}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-end",
+          minWidth: 0,
+        }}
+      >
+        <Button
+          size="large"
+          icon={<SmileOutlined />}
+          aria-label="Open emoji picker"
+          title="Open emoji picker"
+          onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+          disabled={!isSocketConnected}
+        />
+        <TextArea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onPressEnter={(event) => {
+            if (!event.shiftKey) {
+              event.preventDefault();
+              handleSendClick();
+            }
+          }}
+          placeholder="Type a message"
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          style={{ minWidth: 0 }}
+          disabled={!isSocketConnected}
+        />
+        <Button
+          type="primary"
+          onClick={handleSendClick}
+          disabled={!draft.trim() || !isSocketConnected}
+        >
+          Send
+        </Button>
+      </div>
+      {isEmojiPickerOpen ? (
+        <div style={{ width: "100%" }}>
+          <EmojiPicker
+            onEmojiClick={(emojiData) => appendEmoji(emojiData)}
+            lazyLoadEmojis
+            searchDisabled={false}
+            skinTonesDisabled={false}
+            width="100%"
+            height={360}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ForwardMessageModalContent({
+  chats,
+  selectedChatId,
+  sourceMessage,
+  onCancel,
+  onConfirm,
+}: ForwardMessageModalContentProps) {
+  const [targetChatIds, setTargetChatIds] = React.useState<number[]>(
+    selectedChatId !== null ? [selectedChatId] : [],
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div
+        style={{
+          borderRadius: "8px",
+          padding: "8px 10px",
+          background: "rgba(22, 119, 255, 0.08)",
+          border: "1px solid rgba(22, 119, 255, 0.2)",
+        }}
+      >
+        <Text style={{ color: "#1677ff", display: "block", marginBottom: "4px" }}>
+          Message to forward
+        </Text>
+        <Text style={{ whiteSpace: "pre-wrap", color: "rgba(0, 21, 41, 0.88)" }}>
+          {shortenText(sourceMessage.text, 160)}
+        </Text>
+      </div>
+      <div style={{ maxHeight: "320px", overflowY: "auto", paddingRight: "6px" }}>
+        <Checkbox.Group
+          value={targetChatIds}
+          onChange={(values) => setTargetChatIds(values.map((value) => Number(value)))}
+          style={{ width: "100%" }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {chats.map((chat) => (
+              <label
+                key={chat.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  border: "1px solid #f0f0f0",
+                  borderRadius: "8px",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                <Checkbox value={chat.id} />
+                <Avatar size={28} src={chat.avatar_url} icon={chat.type === "private" ? <HomeFilled /> : undefined} />
+                <Text ellipsis style={{ minWidth: 0 }}>
+                  {chat.title || `Chat ${chat.id}`}
+                </Text>
+              </label>
+            ))}
+          </div>
+        </Checkbox.Group>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button
+          type="primary"
+          disabled={targetChatIds.length === 0}
+          onClick={() => onConfirm(targetChatIds)}
+        >
+          Forward
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function GroupSettingsModalContent({
@@ -309,18 +534,18 @@ export default function Messenger() {
   const setChatMessages = useChatMessagesSetter();
   const [chatFolders, setChatFolders] = React.useState<ChatFolderType[]>([]);
   const [selectedFolderId, setSelectedFolderId] = React.useState<number>(ALL_CHATS_GROUP_ID);
-  const [draft, setDraft] = React.useState("");
   const [isMessagesLoading, setIsMessagesLoading] = React.useState(false);
   const [isOlderMessagesLoading, setIsOlderMessagesLoading] = React.useState(false);
   const [hasMoreMessagesByChat, setHasMoreMessagesByChat] = React.useState<Record<number, boolean>>({});
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
   const [replyTarget, setReplyTarget] = React.useState<ChatMessageType | null>(null);
+  const [pendingScrollTargetMessageId, setPendingScrollTargetMessageId] = React.useState<number | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = React.useState<number | null>(null);
   const [isSocketConnected, setIsSocketConnected] = React.useState(false);
   const socketRef = React.useRef<WebSocket | null>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
   const messageElementsRef = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jumpRetryTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const olderLoadScrollRestoreRef = React.useRef<{
     chatId: number;
     previousScrollTop: number;
@@ -610,10 +835,9 @@ export default function Messenger() {
   }, [refreshChats, setChatMessages, setChats]);
 
   React.useEffect(() => {
-    setDraft("");
-    setIsEmojiPickerOpen(false);
     setReplyTarget(null);
     setHighlightedMessageId(null);
+    setPendingScrollTargetMessageId(null);
     setIsOlderMessagesLoading(false);
     olderLoadScrollRestoreRef.current = null;
   }, [selectedChatId]);
@@ -622,6 +846,9 @@ export default function Messenger() {
     return () => {
       if (highlightTimeoutRef.current) {
         clearTimeout(highlightTimeoutRef.current);
+      }
+      if (jumpRetryTimeoutRef.current) {
+        clearTimeout(jumpRetryTimeoutRef.current);
       }
     };
   }, []);
@@ -701,20 +928,62 @@ export default function Messenger() {
     );
   }
 
-  function handleSendMessage() {
-    const text = draft.trim();
-
-    if (selectedChatId === null || !text) {
+  const requestOlderMessagesForSearch = React.useCallback(() => {
+    if (
+      selectedChatId === null ||
+      isMessagesLoading ||
+      isOlderMessagesLoading ||
+      !hasMoreMessagesByChat[selectedChatId] ||
+      !socketRef.current ||
+      socketRef.current.readyState !== WebSocket.OPEN
+    ) {
       return;
+    }
+
+    const oldestMessage = selectedMessages[0];
+    if (!oldestMessage) {
+      return;
+    }
+
+    const container = messagesContainerRef.current;
+    if (container) {
+      olderLoadScrollRestoreRef.current = {
+        chatId: selectedChatId,
+        previousScrollTop: container.scrollTop,
+        previousScrollHeight: container.scrollHeight,
+      };
+    }
+
+    setIsOlderMessagesLoading(true);
+    socketRef.current.send(
+      JSON.stringify({
+        action: "get_messages",
+        chat_id: selectedChatId,
+        before_message_id: oldestMessage.id,
+        limit: MESSAGES_PAGE_SIZE,
+      }),
+    );
+  }, [
+    hasMoreMessagesByChat,
+    isMessagesLoading,
+    isOlderMessagesLoading,
+    selectedChatId,
+    selectedMessages,
+  ]);
+
+  function handleSendMessage(text: string): boolean {
+    if (selectedChatId === null || !text.trim()) {
+      return false;
     }
 
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       antdMessage.error("WebSocket is not connected.");
-      return;
+      return false;
     }
 
     const referenceMessageId = replyTarget?.id;
     const clientMessageId = createClientMessageId();
+    stickToBottomRef.current = true;
     const optimisticMessage: ChatMessageType = {
       id: -Date.now(),
       chat_id: selectedChatId,
@@ -724,6 +993,10 @@ export default function Messenger() {
       delivery_status: "delivered",
       client_message_id: clientMessageId,
       reference_message_id: referenceMessageId,
+      reference_author: replyTarget
+        ? resolveMessageAuthor(replyTarget, selectedChat?.title)
+        : undefined,
+      reference_content: replyTarget ? shortenText(replyTarget.text) : undefined,
     };
     setChatMessages((current) => ({
       ...current,
@@ -750,6 +1023,12 @@ export default function Messenger() {
         client_message_id: clientMessageId,
       }),
     );
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
 
     const timeoutId = setTimeout(() => {
       let hasPendingMessage = false;
@@ -795,19 +1074,71 @@ export default function Messenger() {
     }, 200);
     pendingDeliveryTimeoutsRef.current.set(clientMessageId, timeoutId);
 
-    setDraft("");
     setReplyTarget(null);
-    setIsEmojiPickerOpen(false);
+    return true;
   }
 
-  function handleScrollToMessage(messageId: number) {
-    const targetElement = messageElementsRef.current.get(messageId);
-    if (!targetElement) {
-      antdMessage.info("Referenced message is not loaded yet.");
+  function handleForwardMessage(sourceMessage: ChatMessageType, targetChatIds: number[]): void {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      antdMessage.error("WebSocket is not connected.");
       return;
     }
 
-    targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    targetChatIds.forEach((targetChatId) => {
+      const clientMessageId = createClientMessageId();
+      socketRef.current?.send(
+        JSON.stringify({
+          action: "send_message",
+          chat_id: targetChatId,
+          content: sourceMessage.text,
+          forwarded_from_message_id: sourceMessage.id,
+          client_message_id: clientMessageId,
+        }),
+      );
+
+      if (targetChatId === selectedChatId) {
+        stickToBottomRef.current = true;
+        requestAnimationFrame(() => {
+          const container = messagesContainerRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+        });
+      }
+    });
+
+    antdMessage.success(`Forwarded to ${targetChatIds.length} chat${targetChatIds.length > 1 ? "s" : ""}.`);
+  }
+
+  function handleOpenForwardModal(sourceMessage: ChatMessageType) {
+    setModal({
+      open: true,
+      title: "Forward message",
+      footer: null,
+      onCancel: closeModal,
+      content: (
+        <ForwardMessageModalContent
+          chats={sortChatsByRules(chats)}
+          selectedChatId={selectedChatId}
+          sourceMessage={sourceMessage}
+          onCancel={closeModal}
+          onConfirm={(chatIds) => {
+            handleForwardMessage(sourceMessage, chatIds);
+            closeModal();
+          }}
+        />
+      ),
+    });
+  }
+
+  const jumpToRenderedMessage = React.useCallback((messageId: number): boolean => {
+    const targetElement = messageElementsRef.current.get(messageId);
+    if (!targetElement) {
+      return false;
+    }
+
+    setPendingScrollTargetMessageId(null);
+    targetElement.scrollIntoView({ behavior: "auto", block: "center" });
     setHighlightedMessageId(messageId);
     if (highlightTimeoutRef.current) {
       clearTimeout(highlightTimeoutRef.current);
@@ -817,7 +1148,91 @@ export default function Messenger() {
         currentHighlightedId === messageId ? null : currentHighlightedId,
       );
     }, SCROLL_HIGHLIGHT_DURATION_MS);
-  }
+    return true;
+  }, []);
+
+  const scheduleJumpRetry = React.useCallback((messageId: number, retriesLeft: number) => {
+    if (jumpRetryTimeoutRef.current) {
+      clearTimeout(jumpRetryTimeoutRef.current);
+    }
+    jumpRetryTimeoutRef.current = setTimeout(() => {
+      const didJump = jumpToRenderedMessage(messageId);
+      if (!didJump && retriesLeft > 0 && selectedMessagesById.has(messageId)) {
+        scheduleJumpRetry(messageId, retriesLeft - 1);
+      }
+    }, 30);
+  }, [jumpToRenderedMessage, selectedMessagesById]);
+
+  const handleScrollToMessage = React.useCallback((messageId: number) => {
+    if (jumpToRenderedMessage(messageId)) {
+      return;
+    }
+    setPendingScrollTargetMessageId(messageId);
+    if (selectedMessagesById.has(messageId)) {
+      scheduleJumpRetry(messageId, 40);
+    } else {
+      requestOlderMessagesForSearch();
+    }
+  }, [jumpToRenderedMessage, requestOlderMessagesForSearch, scheduleJumpRetry, selectedMessagesById]);
+
+  React.useEffect(() => {
+    if (selectedChatId === null) {
+      return;
+    }
+
+    const pendingTargetMessageId = pendingScrollTargetMessageId;
+    if (pendingTargetMessageId === null) {
+      return;
+    }
+
+    if (selectedMessagesById.has(pendingTargetMessageId)) {
+      return;
+    }
+
+    if (isOlderMessagesLoading || isMessagesLoading) {
+      return;
+    }
+
+    if (!hasMoreMessagesByChat[selectedChatId]) {
+      setPendingScrollTargetMessageId(null);
+      antdMessage.info("Referenced message is unavailable.");
+      return;
+    }
+
+    requestOlderMessagesForSearch();
+  }, [
+    handleScrollToMessage,
+    hasMoreMessagesByChat,
+    isMessagesLoading,
+    isOlderMessagesLoading,
+    pendingScrollTargetMessageId,
+    requestOlderMessagesForSearch,
+    selectedChatId,
+    selectedMessagesById,
+  ]);
+
+  React.useEffect(() => {
+    const pendingTargetMessageId = pendingScrollTargetMessageId;
+    if (pendingTargetMessageId === null) {
+      return;
+    }
+    if (!selectedMessagesById.has(pendingTargetMessageId)) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      if (!jumpToRenderedMessage(pendingTargetMessageId)) {
+        scheduleJumpRetry(pendingTargetMessageId, 40);
+      }
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [
+    jumpToRenderedMessage,
+    pendingScrollTargetMessageId,
+    scheduleJumpRetry,
+    selectedMessages,
+    selectedMessagesById,
+  ]);
 
   React.useEffect(() => {
     if (!selectedChatId || !stickToBottomRef.current) {
@@ -830,11 +1245,6 @@ export default function Messenger() {
       }
     });
   }, [selectedChatId, selectedMessages]);
-
-  function appendEmoji(emojiData: EmojiClickData) {
-    setDraft((currentDraft) => `${currentDraft}${emojiData.emoji}`);
-    setIsEmojiPickerOpen(false);
-  }
 
   function handleSelectChat(chatId: number) {
     setSelectedChat(chatId);
@@ -1001,12 +1411,22 @@ export default function Messenger() {
                     : chatMessage.reference_author ?? "User";
                   const referenceContent = referencedMessage
                     ? shortenText(referencedMessage.text)
-                    : chatMessage.reference_content ?? "Message";
+                    : shortenText(chatMessage.reference_content ?? "Message");
                   const hasReference = Boolean(chatMessage.reference_message_id);
+                  const hasForwarded = Boolean(chatMessage.forwarded_from_message_id);
+                  const forwarderName = resolveMessageAuthor(chatMessage, selectedChat?.title);
+                  const forwardedSourceAuthor = chatMessage.forwarded_from_author ?? "Unknown";
+                  const forwardedSourceContent = chatMessage.forwarded_from_content
+                    ? shortenText(chatMessage.forwarded_from_content, 240)
+                    : "";
                   const messageMenuItems: MenuProps["items"] = [
                     {
                       key: "answer",
                       label: "Answer",
+                    },
+                    {
+                      key: "forward",
+                      label: "Forward",
                     },
                   ];
 
@@ -1036,6 +1456,10 @@ export default function Messenger() {
                             domEvent.stopPropagation();
                             if (key === "answer") {
                               setReplyTarget(chatMessage);
+                              return;
+                            }
+                            if (key === "forward") {
+                              handleOpenForwardModal(chatMessage);
                             }
                           },
                         }}
@@ -1102,6 +1526,53 @@ export default function Messenger() {
                               </Text>
                             </div>
                           ) : null}
+                          {hasForwarded ? (
+                            <div
+                              style={{
+                                borderRadius: "10px",
+                                background: "rgba(0, 21, 41, 0.08)",
+                                padding: "8px 10px",
+                                marginBottom: "8px",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  display: "block",
+                                  color: "#1677ff",
+                                  fontWeight: 600,
+                                  fontSize: "13px",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                {forwarderName}
+                              </Text>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                <Text style={{ color: "rgba(0, 21, 41, 0.75)", fontSize: "12px" }}>
+                                  Forwarded from
+                                </Text>
+                                <Avatar
+                                  size={18}
+                                  src={chatMessage.forwarded_from_author_avatar_url}
+                                  style={{ flexShrink: 0 }}
+                                >
+                                  {forwardedSourceAuthor.slice(0, 1).toUpperCase()}
+                                </Avatar>
+                                <Text style={{ color: "rgba(0, 21, 41, 0.85)", fontSize: "12px" }}>
+                                  {forwardedSourceAuthor}
+                                </Text>
+                              </div>
+                              <Text style={{ color: "rgba(0, 21, 41, 0.85)", whiteSpace: "pre-wrap" }}>
+                                {forwardedSourceContent}
+                              </Text>
+                            </div>
+                          ) : null}
                           <div style={{ whiteSpace: "pre-wrap" }}>{chatMessage.text}</div>
                           <Text
                             style={{
@@ -1138,104 +1609,14 @@ export default function Messenger() {
         </Content>
         <Footer style={{ background: "#4096ff", padding: "16px 24px" }}>
           {selectedChat ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                minWidth: 0,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  alignItems: "flex-end",
-                  minWidth: 0,
-                }}
-              >
-                {replyTarget ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "stretch",
-                      justifyContent: "space-between",
-                      width: "100%",
-                      gap: "10px",
-                      padding: "8px 10px",
-                      borderRadius: "10px",
-                      background: "rgba(0, 21, 41, 0.25)",
-                      color: "#fff",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <Text style={{ display: "block", color: "#69b1ff", fontWeight: 600 }}>
-                        {`In reply to ${resolveMessageAuthor(replyTarget, selectedChat?.title)}`}
-                      </Text>
-                      <Text style={{ color: "rgba(255, 255, 255, 0.85)" }}>
-                        {shortenText(replyTarget.text)}
-                      </Text>
-                    </div>
-                    <Button
-                      type="text"
-                      icon={<CloseOutlined />}
-                      onClick={() => setReplyTarget(null)}
-                      style={{ color: "rgba(255, 255, 255, 0.85)" }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  alignItems: "flex-end",
-                  minWidth: 0,
-                }}
-              >
-                <Button
-                  size="large"
-                  icon={<SmileOutlined />}
-                  aria-label="Open emoji picker"
-                  title="Open emoji picker"
-                  onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-                  disabled={!isSocketConnected}
-                />
-                <TextArea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onPressEnter={(event) => {
-                    if (!event.shiftKey) {
-                      event.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Type a message"
-                  autoSize={{ minRows: 1, maxRows: 4 }}
-                  style={{ minWidth: 0 }}
-                  disabled={!isSocketConnected}
-                />
-                <Button
-                  type="primary"
-                  onClick={handleSendMessage}
-                  disabled={!draft.trim() || !isSocketConnected}
-                >
-                  Send
-                </Button>
-              </div>
-              {isEmojiPickerOpen ? (
-                <div style={{ width: "100%" }}>
-                  <EmojiPicker
-                    onEmojiClick={(emojiData) => appendEmoji(emojiData)}
-                    lazyLoadEmojis
-                    searchDisabled={false}
-                    skinTonesDisabled={false}
-                    width="100%"
-                    height={360}
-                  />
-                </div>
-              ) : null}
-            </div>
+            <MessageComposer
+              key={selectedChat.id}
+              isSocketConnected={isSocketConnected}
+              replyTarget={replyTarget}
+              selectedChatTitle={selectedChat.title}
+              onCancelReply={() => setReplyTarget(null)}
+              onSendMessage={handleSendMessage}
+            />
           ) : (
             "No active chat"
           )}

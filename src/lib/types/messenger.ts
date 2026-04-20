@@ -34,12 +34,22 @@ export interface ChatMessageType {
   reference_message_id?: number;
   reference_author?: string;
   reference_content?: string;
+  forwarded_from_message_id?: number;
+  forwarded_from_author?: string;
+  forwarded_from_author_avatar_url?: string;
+  forwarded_from_content?: string;
 }
 
 export interface ChatMessageApiType {
   id: number;
   chat_id: number;
   reference_message_id?: number | null;
+  reference_author?: string | null;
+  reference_content?: string | null;
+  forwarded_from_message_id?: number | null;
+  forwarded_from_author?: string | null;
+  forwarded_from_author_avatar_url?: string | null;
+  forwarded_from_content?: string | null;
   content: string;
   created_at_timestamp: number;
   is_own: boolean;
