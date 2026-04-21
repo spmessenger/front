@@ -114,8 +114,8 @@ export default function ProfileModal({
                 width: 96,
                 height: 96,
                 borderRadius: "50%",
-                border: "1px dashed #d9d9d9",
-                background: "#fafafa",
+                border: "2px dashed var(--line)",
+                background: "var(--surface-soft)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -151,7 +151,7 @@ export default function ProfileModal({
               disabled={submitting}
             />
             <Flex align="center" gap={6} justify="center">
-              <InfoCircleOutlined style={{ color: "#8c8c8c" }} />
+              <InfoCircleOutlined style={{ color: "rgba(63, 40, 49, 0.75)" }} />
               <Text type="secondary">Update your username and avatar.</Text>
             </Flex>
           </Flex>

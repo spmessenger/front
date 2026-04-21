@@ -52,8 +52,9 @@ export default function AvatarCropModal({
               height: AVATAR_CROP_STAGE_SIZE,
               overflow: "hidden",
               position: "relative",
-              background: "#1f1f1f",
+              background: "#b396cb",
               borderRadius: 12,
+              border: "2px solid var(--line)",
             }}
           >
             {cropSource ? (
@@ -81,8 +82,8 @@ export default function AvatarCropModal({
                 height: cropSize,
                 borderRadius: "50%",
                 cursor: "grab",
-                boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.48)",
-                border: "2px solid rgba(255, 255, 255, 0.9)",
+                boxShadow: "0 0 0 9999px rgba(63, 40, 49, 0.42)",
+                border: "2px solid rgba(249, 233, 211, 0.95)",
                 backdropFilter: "brightness(1.05)",
               }}
             >
@@ -95,8 +96,8 @@ export default function AvatarCropModal({
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
-                  background: "#ffffff",
-                  border: "2px solid #1677ff",
+                  background: "#f9e9d3",
+                  border: "2px solid var(--line)",
                   cursor: "nwse-resize",
                 }}
               />

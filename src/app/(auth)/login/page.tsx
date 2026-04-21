@@ -31,7 +31,12 @@ export default function Login() {
   };
 
   return (
-    <Card title="Sign in" style={{ width: 400 }}>
+    <Card
+      title={<span className="retro-pixel-text">Sign in</span>}
+      style={{ width: "min(440px, 100%)" }}
+      headStyle={{ background: "var(--titlebar-cyan)", borderBottom: "3px solid var(--line)" }}
+      bodyStyle={{ paddingTop: 22 }}
+    >
       <Form
         name="basic"
         labelCol={{ span: 8 }}
@@ -62,11 +67,11 @@ export default function Login() {
         </FormItem>
         <Flex justify="space-between">
           <FormItem label={null}>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" className="retro-pixel-text">
               Submit
             </Button>
           </FormItem>
-          <Button type="link" href="/register">
+          <Button type="link" href="/register" className="retro-pixel-text">
             Register
           </Button>
         </Flex>

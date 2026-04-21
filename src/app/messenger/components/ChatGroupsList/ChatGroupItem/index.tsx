@@ -27,13 +27,21 @@ export default function ChatGroupItem({
         width: "100%",
         borderRadius: "8px",
         padding: "6px 2px",
-        background: isActive ? "rgba(255, 255, 255, 0.2)" : "transparent",
+        background: isActive ? "var(--mess-group-active-bg)" : "transparent",
       }}
     >
       <Badge count={group.unread_messages_count} size="small" overflowCount={99}>
         <Avatar icon={<FolderFilled />} />
       </Badge>
-      <label style={{ color: "#fff", fontSize: "12px", textAlign: "center", lineHeight: 1.2 }}>
+      <label
+        className="retro-pixel-text"
+        style={{
+          color: "var(--mess-text)",
+          fontSize: "12px",
+          textAlign: "center",
+          lineHeight: 1.2,
+        }}
+      >
         {group.title}
       </label>
     </Flex>

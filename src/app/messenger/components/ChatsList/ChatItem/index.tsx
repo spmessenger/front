@@ -27,6 +27,8 @@ function PrivateChatItem(props: ChatItemProps) {
 
 function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProps) {
   const previewText = (chat.last_message ?? "No messages yet").replace(/\s+/g, " ").trim();
+  const isAttachmentPreviewLabel =
+    previewText === "Document" || previewText === "Photo" || previewText === "Video";
   const previewTime = chat.last_message_at
     ? new Date(chat.last_message_at).toLocaleTimeString([], {
         hour: "2-digit",
@@ -76,12 +78,12 @@ function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProp
           {chat.avatar ?? <Avatar size={48} src={chat.avatar_url} alt={chat.title} />}
           <Flex justify="space-between" vertical style={{ minWidth: 0, flex: 1 }}>
             <Flex align="center" gap={6} style={{ minWidth: 0 }}>
-              <Text strong ellipsis style={{ display: "block", minWidth: 0 }}>
+              <Text strong ellipsis className="retro-pixel-text" style={{ display: "block", minWidth: 0 }}>
                 {chat.title}
               </Text>
               {showPinnedIcon ? (
                 <PushpinOutlined
-                  style={{ color: "rgba(0, 21, 41, 0.65)", fontSize: "12px" }}
+                  style={{ color: "var(--mess-muted-text)", fontSize: "12px" }}
                   title="Pinned"
                 />
               ) : null}
@@ -89,7 +91,7 @@ function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProp
             <Text
               type="secondary"
               ellipsis={{ tooltip: previewText }}
-              style={{ display: "block", maxWidth: "100%" }}
+              style={{ display: "block", maxWidth: "100%", fontStyle: isAttachmentPreviewLabel ? "italic" : "normal" }}
             >
               {previewText}
             </Text>

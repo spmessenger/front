@@ -6,5 +6,18 @@ export default function MessengerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <Flex style={{ height: "100vh" }}>{children}</Flex>;
+  return (
+    <Flex
+      style={{
+        height: "100svh",
+        padding: "16px",
+        boxSizing: "border-box",
+        overflow: "hidden",
+        alignItems: "stretch",
+        minHeight: 0,
+      }}
+    >
+      {children}
+    </Flex>
+  );
 }

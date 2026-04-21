@@ -38,7 +38,7 @@ export default function ChatGroupsList({
         title="Group settings"
         aria-label="Group settings"
         onClick={onOpenGroupSettings}
-        style={{ color: "#fff" }}
+        style={{ color: "var(--foreground)" }}
       />
     </Flex>
   );

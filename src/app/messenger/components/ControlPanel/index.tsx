@@ -234,12 +234,12 @@ export default function ControlPanel() {
         open={open}
         placement="left"
         title={
-          <Flex align="center">
+          <Flex align="center" gap={8}>
             <Avatar
               size="large"
               src={avatarUrl || "https://api.dicebear.com/7.x/miniavs/svg?seed=1"}
             />
-            <Text strong>{username}</Text>
+            <Text strong className="retro-pixel-text">{username}</Text>
           </Flex>
         }
         onClose={() => setOpen(false)}

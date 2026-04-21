@@ -1,79 +1,68 @@
+"use client";
+
+import React from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
 
-const characters = [
-  { name: "Cartman", color: styles.cartman },
-  { name: "Kyle", color: styles.kyle },
-  { name: "Stan", color: styles.stan },
-  { name: "Kenny", color: styles.kenny },
-];
-
-const features = [
-  {
-    icon: "\u{1F4AC}",
-    title: "Instant Messaging",
-    description: "Chat with characters in real-time!",
-  },
-  {
-    icon: "\u{1F465}",
-    title: "All Characters",
-    description: "Talk to Cartman, Kyle, Stan & more!",
-  },
-  {
-    icon: "\u{1F642}",
-    title: "Classic Quotes",
-    description: "Get iconic South Park responses!",
-  },
-  {
-    icon: "\u26A1",
-    title: "Super Fast",
-    description: "Lightning-fast messaging!",
-  },
-];
+const baseText = "Your";
+const words = ["style", "vibe", "messenger"];
 
 export default function Home() {
+  const [displayText, setDisplayText] = React.useState("");
+  const [currentWordIndex, setCurrentWordIndex] = React.useState(0);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
+  React.useEffect(() => {
+    const typingSpeed = isDeleting ? 75 : 120;
+    const pauseDurationMs = 1400;
+    const currentFullText = `${baseText} ${words[currentWordIndex]}`;
+
+    if (!isDeleting && displayText === currentFullText) {
+      const pauseTimer = window.setTimeout(() => setIsDeleting(true), pauseDurationMs);
+      return () => window.clearTimeout(pauseTimer);
+    }
+
+    if (isDeleting && displayText === `${baseText} `) {
+      setIsDeleting(false);
+      setCurrentWordIndex((index) => (index + 1) % words.length);
+      return;
+    }
+
+    const typingTimer = window.setTimeout(() => {
+      if (isDeleting) {
+        setDisplayText(currentFullText.slice(0, Math.max(baseText.length + 1, displayText.length - 1)));
+      } else {
+        setDisplayText(currentFullText.slice(0, displayText.length + 1));
+      }
+    }, typingSpeed);
+
+    return () => window.clearTimeout(typingTimer);
+  }, [currentWordIndex, displayText, isDeleting]);
+
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        <p className={styles.brand}>SOUTH PARK</p>
-        <h1 className={styles.title}>Messenger</h1>
-        <p className={styles.subtitle}>
-          Chat with your favorite characters! <span>{"\u{1F3AD}"}</span>
-        </p>
+      <div className={styles.background} aria-hidden="true">
+        <span className={`${styles.rect} ${styles.rect1}`} />
+        <span className={`${styles.rect} ${styles.rect2}`} />
+        <span className={`${styles.rect} ${styles.rect3}`} />
+        <span className={`${styles.rect} ${styles.rect4}`} />
+        <span className={`${styles.rect} ${styles.rect5}`} />
+        <span className={`${styles.rect} ${styles.rect6}`} />
+        <span className={`${styles.rect} ${styles.rect7}`} />
+        <span className={`${styles.rect} ${styles.rect8}`} />
+        <span className={`${styles.rect} ${styles.rect9}`} />
+        <span className={`${styles.rect} ${styles.rect10}`} />
+      </div>
 
-        <div className={styles.characters} aria-label="Featured characters">
-          {characters.map((character) => (
-            <article className={styles.characterCard} key={character.name}>
-              <div className={`${styles.avatar} ${character.color}`}>
-                <span className={styles.eyeLeft} />
-                <span className={styles.eyeRight} />
-                <span className={styles.mouth} />
-              </div>
-              <p>{character.name}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className={styles.actions}>
-          <Link className={styles.primaryButton} href="/login">
-            Start Chatting! {"\u{1F680}"}
-          </Link>
-          <Link className={styles.secondaryButton} href="/register">
-            Learn More {"\u{1F4D6}"}
-          </Link>
-        </div>
-      </section>
-
-      <section className={styles.features}>
-        {features.map((feature) => (
-          <article className={styles.featureCard} key={feature.title}>
-            <div className={styles.featureIcon} aria-hidden="true">
-              {feature.icon}
-            </div>
-            <h2>{feature.title}</h2>
-            <p>{feature.description}</p>
-          </article>
-        ))}
+      <section className={styles.content}>
+        <h1 className={styles.title}>
+          {displayText}
+          <span className={styles.cursor}>|</span>
+        </h1>
+        <p className={styles.subtitle}>Customize your messaging workspace</p>
+        <Link href="/login" className={styles.enterButton}>
+          Enter
+        </Link>
       </section>
     </main>
   );

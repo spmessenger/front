@@ -33,10 +33,10 @@ function SelectedContact({ contact }: { contact: ContactType }) {
     <Flex
       align="center"
       gap={4}
-      style={{ background: "gray", borderRadius: 16, paddingRight: 6 }}
+      style={{ background: "rgba(124, 149, 221, 0.25)", borderRadius: 16, paddingRight: 6 }}
     >
       <Avatar size={28} src={contact.avatar_url} />
-      <Text>{contact.username}</Text>
+      <Text className="retro-pixel-text">{contact.username}</Text>
     </Flex>
   );
 }
@@ -195,8 +195,8 @@ export default function CreateGroupModal({ onClose }: { onClose: () => void }) {
                   width: 96,
                   height: 96,
                   borderRadius: "50%",
-                  border: "1px dashed #d9d9d9",
-                  background: "#fafafa",
+                  border: "2px dashed var(--line)",
+                  background: "var(--surface-soft)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",

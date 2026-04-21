@@ -27,6 +27,9 @@ export interface ChatMessageType {
   id: number;
   chat_id: number;
   text: string;
+  content_type?: ChatMessageContentType;
+  attachment?: ChatAttachmentType;
+  attachment_group_id?: string;
   created_at: string;
   is_own: boolean;
   delivery_status: "pending" | "delivered";
@@ -40,6 +43,27 @@ export interface ChatMessageType {
   forwarded_from_content?: string;
 }
 
+export type ChatMessageContentType = "text" | "image" | "video" | "document";
+
+export interface ChatAttachmentType {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  url?: string;
+  status?: "pending" | "ready" | "failed";
+  upload_progress?: number;
+}
+
+export interface ChatAttachmentApiType {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  download_url?: string | null;
+  status?: "pending" | "ready" | "failed";
+}
+
 export interface ChatMessageApiType {
   id: number;
   chat_id: number;
@@ -51,8 +75,77 @@ export interface ChatMessageApiType {
   forwarded_from_author_avatar_url?: string | null;
   forwarded_from_content?: string | null;
   content: string;
+  content_type?: ChatMessageContentType | null;
+  attachment?: ChatAttachmentApiType | null;
+  attachment_group_id?: string | null;
   created_at_timestamp: number;
   is_own: boolean;
+}
+
+export interface AttachmentInitPayload {
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface AttachmentInitResponse {
+  attachment_id: string;
+  storage_key: string;
+  upload_url: string;
+  upload_method: "PUT" | "POST";
+  headers?: Record<string, string>;
+  expires_in: number;
+}
+
+export interface AttachmentCompletePayload {
+  sha256?: string;
+}
+
+export interface AttachmentCompleteResponse {
+  attachment_id: string;
+  status: "pending" | "ready" | "failed";
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface AttachmentDownloadResponse {
+  url: string;
+  expires_in: number;
+}
+
+export interface LinkPreviewResponse {
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  image_url?: string | null;
+  site_name?: string | null;
+  youtube_video_id?: string | null;
+}
+
+export interface WatchRoomType {
+  id: string;
+  chat_id: number;
+  youtube_video_id: string;
+  host_user_id: number;
+  viewer_user_ids: number[];
+  viewer_count: number;
+  sync_revision: number;
+  sync_current_time_seconds: number;
+  sync_is_playing: boolean;
+  created_at: number;
+}
+
+export interface WatchRoomInviteType {
+  id: string;
+  room_id: string;
+  from_user_id: number;
+  from_username: string;
+  to_user_id: number;
+  source_chat_id: number;
+  target_chat_id?: number | null;
+  youtube_video_id: string;
+  status: "pending" | "accepted" | "declined";
+  created_at: number;
 }
 
 export interface ParticipantType {

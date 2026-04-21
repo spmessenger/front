@@ -33,7 +33,12 @@ export default function Register() {
   };
 
   return (
-    <Card title="Register" style={{ width: 400 }}>
+    <Card
+      title={<span className="retro-pixel-text">Register</span>}
+      style={{ width: "min(440px, 100%)" }}
+      headStyle={{ background: "var(--titlebar-pink)", borderBottom: "3px solid var(--line)" }}
+      bodyStyle={{ paddingTop: 22 }}
+    >
       <Form
         name="basic"
         labelCol={{ span: 8 }}
@@ -64,11 +69,11 @@ export default function Register() {
         </FormItem>
         <Flex justify="space-between">
           <FormItem label={null}>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" className="retro-pixel-text">
               Submit
             </Button>
           </FormItem>
-          <Button type="link" href="/login">
+          <Button type="link" href="/login" className="retro-pixel-text">
             Sign in
           </Button>
         </Flex>
