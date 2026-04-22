@@ -31,51 +31,54 @@ export default function Login() {
   };
 
   return (
-    <Card
-      title={<span className="retro-pixel-text">Sign in</span>}
-      style={{ width: "min(440px, 100%)" }}
-      headStyle={{ background: "var(--titlebar-cyan)", borderBottom: "3px solid var(--line)" }}
-      bodyStyle={{ paddingTop: 22 }}
-    >
-      <Form
-        name="basic"
-        labelCol={{ span: 8 }}
-        wrapperCol={{ span: 16 }}
-        style={{ maxWidth: 400 }}
-        initialValues={{ remember: true }}
-        onFinish={onFinish}
-        onFinishFailed={onFinishFailed}
+    <div className="auth-mono-page">
+      <Card
+        className="auth-mono-card"
+        title={<span className="auth-mono-text">Sign in</span>}
+        style={{ width: "min(440px, 100%)" }}
+        bodyStyle={{ paddingTop: 22 }}
       >
-        {loginError ? (
-          <FormItem wrapperCol={{ span: 24 }}>
-            <Alert type="error" showIcon message={loginError} />
+        <Form
+          className="auth-mono-form"
+          name="basic"
+          labelCol={{ span: 8 }}
+          wrapperCol={{ span: 16 }}
+          style={{ maxWidth: 400 }}
+          initialValues={{ remember: true }}
+          onFinish={onFinish}
+          onFinishFailed={onFinishFailed}
+        >
+          {loginError ? (
+            <FormItem wrapperCol={{ span: 24 }}>
+              <Alert type="error" showIcon message={loginError} />
+            </FormItem>
+          ) : null}
+          <FormItem
+            label="Username"
+            name="username"
+            rules={[{ required: true, message: "Please input your username!" }]}
+          >
+            <Input />
           </FormItem>
-        ) : null}
-        <FormItem
-          label="Username"
-          name="username"
-          rules={[{ required: true, message: "Please input your username!" }]}
-        >
-          <Input />
-        </FormItem>
-        <FormItem
-          label="Password"
-          name="password"
-          rules={[{ required: true, message: "Please input your password!" }]}
-        >
-          <InputPassword />
-        </FormItem>
-        <Flex justify="space-between">
-          <FormItem label={null}>
-            <Button type="primary" htmlType="submit" className="retro-pixel-text">
-              Submit
+          <FormItem
+            label="Password"
+            name="password"
+            rules={[{ required: true, message: "Please input your password!" }]}
+          >
+            <InputPassword />
+          </FormItem>
+          <Flex justify="space-between">
+            <FormItem label={null}>
+              <Button type="primary" htmlType="submit" className="auth-mono-text">
+                Submit
+              </Button>
+            </FormItem>
+            <Button type="link" href="/register" className="auth-mono-text">
+              Register
             </Button>
-          </FormItem>
-          <Button type="link" href="/register" className="retro-pixel-text">
-            Register
-          </Button>
-        </Flex>
-      </Form>
-    </Card>
+          </Flex>
+        </Form>
+      </Card>
+    </div>
   );
 }

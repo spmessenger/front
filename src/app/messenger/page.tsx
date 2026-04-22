@@ -3,40 +3,70 @@ import React, { Fragment } from "react";
 import {
   Avatar,
   Button,
-  Checkbox,
   Dropdown,
   Image,
-  Input,
   Layout,
-  Modal as AntdModal,
   Progress,
-  Select,
   Tooltip,
   Typography,
   message as antdMessage,
 } from "antd";
 import {
   CheckOutlined,
-  CloseOutlined,
-  CrownFilled,
-  FileImageOutlined,
-  FileTextOutlined,
   HomeFilled,
   InboxOutlined,
   LoadingOutlined,
-  PaperClipOutlined,
   RedoOutlined,
-  SmileOutlined,
   YoutubeFilled,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Content, Header, Footer } from "antd/lib/layout/layout";
 import Sider from "antd/lib/layout/Sider";
-import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import ChatsList from "./components/ChatsList";
 import ChatGroupsList from "./components/ChatGroupsList";
 import ControlPanel from "./components/ControlPanel";
 import SearchInput from "./components/SearchInput";
+import MessageComposer from "./components/MessageComposer";
+import ForwardMessageModalContent from "./components/ForwardMessageModalContent";
+import GroupSettingsModalContent from "./components/GroupSettingsModalContent";
+import YouTubeWatchRoomModals from "./components/YouTubeWatchRoomModals";
+import ExpenseSplitModal from "./components/ExpenseSplitModal";
+import ChatExpensesPanel from "./components/ChatExpensesPanel";
+import {
+  ALL_CHATS_GROUP_ID,
+  ALL_CHATS_GROUP_TITLE,
+  ATTACHMENT_MAX_SIZE_BYTES,
+  CHAT_GROUPS_CACHE_STORAGE_KEY,
+  CHATS_CACHE_STORAGE_KEY,
+  ENABLE_EXPENSE_SPLIT_FEATURE,
+  MESSENGER_THEME_STORAGE_KEY,
+  MESSENGER_THEME_VARS,
+  SCROLL_HIGHLIGHT_DURATION_MS,
+} from "./constants";
+import type { AttachmentPickerKind, ChatSocketResponse, MessengerTheme, YouTubePlayerLike } from "./types";
+import { hasYouTubePlayerMethods } from "./types";
+import {
+  createClientMessageId,
+  extractUrls,
+  extractYouTubeVideoId,
+  extractYouTubeVideoIdFromUrl,
+  formatCalendarDay,
+  getChatPreviewText,
+  getViewerSyncStates,
+  isGroupedMediaMessage,
+  isSameCalendarDay,
+  mapApiMessage,
+  parseChatGroupsCache,
+  parseChatsCache,
+  renderTextWithClickableUrls,
+  resolveAttachmentPickerKind,
+  resolveContentTypeForFile,
+  resolveMessageAuthor,
+  shortenText,
+  sortChatsByRules,
+  uploadFileWithProgress,
+  watchRoomMapKey,
+} from "./utils";
 import AppModal from "@/components/Modal";
 import { useModalSetter } from "@/hooks/features/ui/modal";
 import AuthApi from "@/lib/api/auth";
@@ -52,1144 +82,25 @@ import {
 } from "@/hooks/features/messenger/chats";
 import type {
   ContactType,
-  ChatMessageContentType,
-  ChatFolderReplaceItemType,
+  ExpensePaymentType,
+  ExpenseType,
+  ExpenseOverviewType,
   ChatFolderType,
-  ChatMessageApiType,
   ChatMessageType,
   ChatType,
-  WatchRoomInviteType,
+  WatchRoomChatMessageType,
   WatchRoomType,
 } from "@/lib/types";
 
 const { Text } = Typography;
-const { TextArea } = Input;
-const REPLY_PREVIEW_MAX_LENGTH = 100;
-const SCROLL_HIGHLIGHT_DURATION_MS = 1800;
-const CHATS_CACHE_STORAGE_KEY = "messenger.chats.v1";
-const CHAT_GROUPS_CACHE_STORAGE_KEY = "messenger.chatGroups.v1";
-const MESSENGER_THEME_STORAGE_KEY = "messenger.theme.v1";
-const ATTACHMENT_MAX_SIZE_BYTES = 100 * 1024 * 1024;
+const WATCH_ROOM_REACTION_PREFIX = "[[reaction]]";
 
-type MessengerTheme = "retro" | "mono";
-type AttachmentPickerKind = "photo_or_video" | "document";
-
-const MESSENGER_THEME_VARS: Record<MessengerTheme, Record<string, string>> = {
-  retro: {
-    "--mess-shell-bg": "#f3e1ca",
-    "--mess-text": "#3f2831",
-    "--mess-muted-text": "rgba(63, 40, 49, 0.72)",
-    "--mess-sidebar-left": "#b396cb",
-    "--mess-sidebar-mid": "#c75f8f",
-    "--mess-header": "#6ebfbe",
-    "--mess-reply-bg": "rgba(124, 149, 221, 0.24)",
-    "--mess-reply-title": "#7c95dd",
-    "--mess-highlight": "#e2bf61",
-    "--mess-highlight-glow": "rgba(226, 191, 97, 0.35)",
-    "--mess-group-active-bg": "rgba(110, 191, 190, 0.38)",
-    "--mess-own-bubble": "#9fd6d2",
-    "--mess-other-bubble": "#f9e9d3",
-    "--mess-soft-card-bg": "rgba(124, 149, 221, 0.17)",
-    "--mess-soft-border": "rgba(77, 46, 58, 0.25)",
-    "--mess-accent": "#c75f8f",
-    "--mess-date-bg": "#f3e1ca",
-  },
-  mono: {
-    "--mess-shell-bg": "#0d0d0d",
-    "--mess-text": "#ffffff",
-    "--mess-muted-text": "#ffffff",
-    "--mess-sidebar-left": "#000000",
-    "--mess-sidebar-mid": "#0a0a0a",
-    "--mess-header": "#111111",
-    "--mess-reply-bg": "rgba(255, 255, 255, 0.08)",
-    "--mess-reply-title": "#ffffff",
-    "--mess-highlight": "#ffffff",
-    "--mess-highlight-glow": "rgba(255, 255, 255, 0.22)",
-    "--mess-group-active-bg": "rgba(255, 255, 255, 0.14)",
-    "--mess-own-bubble": "#1d1d1d",
-    "--mess-other-bubble": "#121212",
-    "--mess-soft-card-bg": "rgba(255, 255, 255, 0.08)",
-    "--mess-soft-border": "rgba(255, 255, 255, 0.25)",
-    "--mess-accent": "#ffffff",
-    "--mess-date-bg": "#0d0d0d",
-  },
+type WatchRoomReactionView = {
+  id: string;
+  emoji: string;
+  x_percent: number;
+  y_percent: number;
 };
-
-type ChatSocketResponse =
-  | {
-      type: "messages";
-      chat_id: number;
-      messages: ChatMessageApiType[];
-      has_more: boolean;
-      request_before_message_id?: number | null;
-    }
-  | {
-      type: "message";
-      message: ChatMessageApiType & {
-        client_message_id?: string | null;
-      };
-    }
-  | {
-      type: "chat_created";
-      chat_id: number;
-    }
-  | {
-      type: "watch_room_updated";
-      room: WatchRoomType;
-    }
-  | {
-      type: "watch_room_invite";
-      invite: WatchRoomInviteType;
-    }
-  | {
-      type: "error";
-      detail: string;
-    chat_id?: number;
-    };
-
-type YouTubePlayerLike = {
-  getCurrentTime: () => number;
-  playVideo: () => void;
-  pauseVideo: () => void;
-  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
-  getPlayerState: () => number;
-  destroy: () => void;
-};
-
-function hasYouTubePlayerMethods(player: unknown): player is YouTubePlayerLike {
-  if (!player || typeof player !== "object") {
-    return false;
-  }
-  const candidate = player as Partial<YouTubePlayerLike>;
-  return (
-    typeof candidate.getCurrentTime === "function" &&
-    typeof candidate.playVideo === "function" &&
-    typeof candidate.pauseVideo === "function" &&
-    typeof candidate.seekTo === "function" &&
-    typeof candidate.getPlayerState === "function"
-  );
-}
-
-declare global {
-  interface Window {
-    YT?: {
-      Player: new (
-        element: HTMLElement,
-        options: {
-          videoId?: string;
-          playerVars?: Record<string, number | string>;
-          events?: Record<string, (event: { data?: number; target?: unknown }) => void>;
-        },
-      ) => YouTubePlayerLike;
-      PlayerState?: {
-        PLAYING: number;
-        PAUSED: number;
-      };
-    };
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
-function parseChatsCache(rawValue: string | null): ChatType[] | null {
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as unknown;
-    if (!Array.isArray(parsed)) {
-      return null;
-    }
-
-    return parsed.filter((item): item is ChatType => {
-      if (!item || typeof item !== "object") {
-        return false;
-      }
-
-      const chat = item as Partial<ChatType>;
-      return typeof chat.id === "number" && typeof chat.type === "string";
-    });
-  } catch {
-    return null;
-  }
-}
-
-function parseChatGroupsCache(rawValue: string | null): ChatFolderType[] | null {
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as unknown;
-    if (!Array.isArray(parsed)) {
-      return null;
-    }
-
-    return parsed.filter((item): item is ChatFolderType => {
-      if (!item || typeof item !== "object") {
-        return false;
-      }
-
-      const group = item as Partial<ChatFolderType>;
-      return (
-        typeof group.id === "number" &&
-        typeof group.title === "string" &&
-        Array.isArray(group.chat_ids) &&
-        group.chat_ids.every((chatId) => typeof chatId === "number")
-      );
-    });
-  } catch {
-    return null;
-  }
-}
-
-function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
-  const resolvedAttachmentUrl = message.attachment?.download_url
-    ? (
-      message.attachment.download_url.startsWith("http")
-        ? message.attachment.download_url
-        : `${API_BASE_URL.replace(/\/$/, "")}/${message.attachment.download_url.replace(/^\//, "")}`
-    )
-    : undefined;
-
-  return {
-    id: message.id,
-    chat_id: message.chat_id,
-    text: message.content,
-    content_type: message.content_type ?? "text",
-    attachment: message.attachment
-      ? {
-          id: message.attachment.id,
-          original_name: message.attachment.original_name,
-          mime_type: message.attachment.mime_type,
-          size_bytes: message.attachment.size_bytes,
-          url: resolvedAttachmentUrl,
-          status: message.attachment.status ?? "ready",
-        }
-      : undefined,
-    attachment_group_id: message.attachment_group_id ?? undefined,
-    created_at: new Date(message.created_at_timestamp * 1000).toISOString(),
-    is_own: message.is_own,
-    delivery_status: "delivered",
-    reference_message_id: message.reference_message_id ?? undefined,
-    reference_author: message.reference_author ?? undefined,
-    reference_content: message.reference_content ?? undefined,
-    forwarded_from_message_id: message.forwarded_from_message_id ?? undefined,
-    forwarded_from_author: message.forwarded_from_author ?? undefined,
-    forwarded_from_author_avatar_url: message.forwarded_from_author_avatar_url ?? undefined,
-    forwarded_from_content: message.forwarded_from_content ?? undefined,
-  };
-}
-
-function shortenText(text: string, maxLength: number = REPLY_PREVIEW_MAX_LENGTH): string {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
-  if (normalizedText.length <= maxLength) {
-    return normalizedText;
-  }
-  return `${normalizedText.slice(0, maxLength - 3).trimEnd()}...`;
-}
-
-function resolveMessageAuthor(
-  message: Pick<ChatMessageType, "is_own">,
-  selectedChatTitle: string | undefined,
-): string {
-  if (message.is_own) {
-    return "You";
-  }
-  return selectedChatTitle || "User";
-}
-
-function createClientMessageId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  };
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function isSameCalendarDay(leftIso: string, rightIso: string): boolean {
-  const left = new Date(leftIso);
-  const right = new Date(rightIso);
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
-}
-
-function formatCalendarDay(iso: string): string {
-  return new Date(iso).toLocaleDateString([], {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function chatLastMessageTimestamp(chat: ChatType): number {
-  if (!chat.last_message_at) {
-    return 0;
-  }
-  const parsed = Date.parse(chat.last_message_at);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function sortChatsByRules(chats: ChatType[]): ChatType[] {
-  return [...chats].sort((left, right) => {
-    const leftIsPrivate = left.type === "private";
-    const rightIsPrivate = right.type === "private";
-    if (leftIsPrivate !== rightIsPrivate) {
-      return leftIsPrivate ? -1 : 1;
-    }
-
-    if (leftIsPrivate && rightIsPrivate) {
-      return chatLastMessageTimestamp(right) - chatLastMessageTimestamp(left);
-    }
-
-    const leftPin = left.pin_position ?? 0;
-    const rightPin = right.pin_position ?? 0;
-    const leftPinned = leftPin > 0;
-    const rightPinned = rightPin > 0;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-
-    if (leftPinned && rightPinned) {
-      if (leftPin !== rightPin) {
-        return rightPin - leftPin;
-      }
-      return chatLastMessageTimestamp(right) - chatLastMessageTimestamp(left);
-    }
-
-    return chatLastMessageTimestamp(right) - chatLastMessageTimestamp(left);
-  });
-}
-
-const ALL_CHATS_GROUP_ID = -1;
-const ALL_CHATS_GROUP_TITLE = "\u0412\u0441\u0435 \u0447\u0430\u0442\u044b";
-
-interface GroupSettingsModalContentProps {
-  chats: ChatType[];
-  groups: ChatFolderType[];
-  onSave: (groups: ChatFolderReplaceItemType[]) => void;
-  onCancel: () => void;
-}
-
-interface MessageComposerProps {
-  isSocketConnected: boolean;
-  messengerTheme: MessengerTheme;
-  isAttachmentUploading: boolean;
-  replyTarget: ChatMessageType | null;
-  selectedChatTitle: string | undefined;
-  onCancelReply: () => void;
-  onSendMessage: (text: string) => boolean;
-  onSendAttachment: (file: File, kind: AttachmentPickerKind) => Promise<void>;
-  onSendAttachmentBatch: (files: File[], caption: string) => Promise<void>;
-}
-
-function getChatPreviewText(message: Pick<ChatMessageType, "text" | "content_type" | "attachment">): string {
-  const normalizedText = message.text.trim();
-  if (normalizedText.length > 0) {
-    return normalizedText;
-  }
-
-  if (message.attachment?.original_name) {
-    return message.attachment.original_name;
-  }
-
-  if (message.content_type === "image") {
-    return "Photo";
-  }
-
-  if (message.content_type === "video") {
-    return "Video";
-  }
-
-  if (message.content_type === "document") {
-    return "Document";
-  }
-
-  return "Attachment";
-}
-
-function resolveContentTypeForFile(file: File, kind: AttachmentPickerKind): ChatMessageContentType {
-  if (kind === "photo_or_video") {
-    if (file.type.startsWith("image/")) {
-      return "image";
-    }
-    if (file.type.startsWith("video/")) {
-      return "video";
-    }
-  }
-
-  return "document";
-}
-
-function resolveAttachmentPickerKind(file: File): AttachmentPickerKind {
-  if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
-    return "photo_or_video";
-  }
-
-  return "document";
-}
-
-function isGroupedMediaMessage(message: ChatMessageType): boolean {
-  return Boolean(
-    message.attachment &&
-    message.attachment_group_id &&
-    (message.content_type === "image" || message.content_type === "video"),
-  );
-}
-
-const URL_TOKEN_PATTERN =
-  /((?:https?:\/\/|www\.|m\.youtube\.com\/|youtube\.com\/|youtu\.be\/)[^\s]+)/gi;
-
-function normalizeExternalUrl(rawValue: string): string | null {
-  const cleanedValue = rawValue.trim().replace(/[),.;!?]+$/, "");
-  if (!cleanedValue) {
-    return null;
-  }
-
-  const withProtocol = /^https?:\/\//i.test(cleanedValue)
-    ? cleanedValue
-    : `https://${cleanedValue}`;
-  try {
-    const parsedUrl = new URL(withProtocol);
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      return null;
-    }
-    return parsedUrl.toString();
-  } catch {
-    return null;
-  }
-}
-
-function extractUrls(text: string): string[] {
-  if (!text.trim()) {
-    return [];
-  }
-
-  const regex = new RegExp(URL_TOKEN_PATTERN);
-  const results = new Set<string>();
-  let match: RegExpExecArray | null = regex.exec(text);
-  while (match) {
-    const normalized = normalizeExternalUrl(match[0]);
-    if (normalized) {
-      results.add(normalized);
-    }
-    match = regex.exec(text);
-  }
-  return Array.from(results);
-}
-
-function extractYouTubeVideoIdFromUrl(urlValue: string): string | null {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(urlValue);
-  } catch {
-    return null;
-  }
-
-  const hostname = parsedUrl.hostname.toLowerCase().replace(/^www\./, "");
-  if (hostname === "youtu.be") {
-    const pathId = parsedUrl.pathname.split("/").filter(Boolean)[0];
-    if (pathId) {
-      return pathId;
-    }
-    return null;
-  }
-
-  if (hostname === "youtube.com" || hostname === "m.youtube.com") {
-    if (parsedUrl.pathname === "/watch") {
-      const queryId = parsedUrl.searchParams.get("v");
-      if (queryId) {
-        return queryId;
-      }
-    }
-
-    const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
-    if (pathParts.length >= 2 && (pathParts[0] === "shorts" || pathParts[0] === "embed")) {
-      return pathParts[1];
-    }
-  }
-
-  return null;
-}
-
-function extractYouTubeVideoId(text: string): string | null {
-  const urls = extractUrls(text);
-  for (const url of urls) {
-    const videoId = extractYouTubeVideoIdFromUrl(url);
-    if (videoId) {
-      return videoId;
-    }
-  }
-
-  return null;
-}
-
-function renderTextWithClickableUrls(text: string): React.ReactNode {
-  if (!text) {
-    return text;
-  }
-
-  const regex = new RegExp(URL_TOKEN_PATTERN);
-  const nodes: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null = regex.exec(text);
-  while (match) {
-    const token = match[0];
-    const index = match.index;
-    if (index > lastIndex) {
-      nodes.push(text.slice(lastIndex, index));
-    }
-
-    const normalizedUrl = normalizeExternalUrl(token);
-    if (normalizedUrl) {
-      nodes.push(
-        <a
-          key={`${index}-${token}`}
-          href={normalizedUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          style={{ textDecoration: "underline", textUnderlineOffset: "2px" }}
-        >
-          {token.replace(/[),.;!?]+$/, "")}
-        </a>,
-      );
-    } else {
-      nodes.push(token);
-    }
-    lastIndex = index + token.length;
-    match = regex.exec(text);
-  }
-
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-
-  return nodes.length > 0 ? nodes : text;
-}
-
-function watchRoomMapKey(chatId: number, youtubeVideoId: string): string {
-  return `${chatId}:${youtubeVideoId}`;
-}
-
-function uploadFileWithProgress(
-  uploadUrl: string,
-  method: "PUT" | "POST",
-  headers: Record<string, string> | undefined,
-  file: File,
-  onProgress: (progress: number) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    const resolvedUploadUrl = uploadUrl.startsWith("http")
-      ? uploadUrl
-      : `${API_BASE_URL.replace(/\/$/, "")}/${uploadUrl.replace(/^\//, "")}`;
-    request.open(method, resolvedUploadUrl, true);
-
-    try {
-      const uploadOrigin = new URL(resolvedUploadUrl).origin;
-      const apiOrigin = new URL(API_BASE_URL).origin;
-      request.withCredentials = uploadOrigin === apiOrigin;
-    } catch {
-      request.withCredentials = true;
-    }
-
-    if (headers) {
-      Object.entries(headers).forEach(([key, value]) => {
-        request.setRequestHeader(key, value);
-      });
-    } else if (file.type) {
-      request.setRequestHeader("Content-Type", file.type);
-    }
-
-    request.upload.onprogress = (event) => {
-      if (!event.lengthComputable) {
-        return;
-      }
-
-      const progress = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
-      onProgress(progress);
-    };
-
-    request.onerror = () => reject(new Error("Attachment upload failed."));
-    request.onload = () => {
-      if (request.status >= 200 && request.status < 300) {
-        onProgress(100);
-        resolve();
-        return;
-      }
-      const responseHint = request.responseText ? ` ${request.responseText}` : "";
-      reject(new Error(`Attachment upload failed (${request.status}).${responseHint}`));
-    };
-
-    request.send(file);
-  });
-}
-
-interface ForwardMessageModalContentProps {
-  chats: ChatType[];
-  selectedChatId: number | null;
-  sourceMessage: ChatMessageType;
-  onCancel: () => void;
-  onConfirm: (chatIds: number[]) => void;
-}
-
-function MessageComposer({
-  isSocketConnected,
-  messengerTheme,
-  isAttachmentUploading,
-  replyTarget,
-  selectedChatTitle,
-  onCancelReply,
-  onSendMessage,
-  onSendAttachment,
-  onSendAttachmentBatch,
-}: MessageComposerProps) {
-  const [draft, setDraft] = React.useState("");
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
-  const [isMediaModalOpen, setIsMediaModalOpen] = React.useState(false);
-  const [mediaCaptionDraft, setMediaCaptionDraft] = React.useState("");
-  const [pendingMediaFiles, setPendingMediaFiles] = React.useState<
-    Array<{ id: string; file: File; previewUrl: string }>
-  >([]);
-  const pendingMediaFilesRef = React.useRef<Array<{ id: string; file: File; previewUrl: string }>>([]);
-  const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
-  const documentInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  function appendEmoji(emojiData: EmojiClickData) {
-    setDraft((currentDraft) => `${currentDraft}${emojiData.emoji}`);
-    setIsEmojiPickerOpen(false);
-  }
-
-  function handleSendClick() {
-    const text = draft.trim();
-    if (!text) {
-      return;
-    }
-    const didSend = onSendMessage(text);
-    if (!didSend) {
-      return;
-    }
-    setDraft("");
-    setIsEmojiPickerOpen(false);
-  }
-
-  const attachmentMenuItems: MenuProps["items"] = [
-    {
-      key: "photo_or_video",
-      label: "Photo or video",
-      icon: <FileImageOutlined />,
-    },
-    {
-      key: "document",
-      label: "Document",
-      icon: <FileTextOutlined />,
-    },
-  ];
-
-  const handleAttachmentMenuClick: MenuProps["onClick"] = ({ key }) => {
-    if (key === "photo_or_video") {
-      photoVideoInputRef.current?.click();
-      return;
-    }
-
-    if (key === "document") {
-      documentInputRef.current?.click();
-    }
-  };
-
-  function addMediaFiles(files: File[]) {
-    const nextFiles = files.filter(
-      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
-    );
-    if (nextFiles.length === 0) {
-      return;
-    }
-
-    const nextItems = nextFiles.map((file) => ({
-      id:
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-
-    setPendingMediaFiles((current) => [...current, ...nextItems]);
-    setIsMediaModalOpen(true);
-  }
-
-  function removePendingMediaFile(id: string) {
-    setPendingMediaFiles((current) => {
-      const item = current.find((pending) => pending.id === id);
-      if (item) {
-        URL.revokeObjectURL(item.previewUrl);
-      }
-      return current.filter((pending) => pending.id !== id);
-    });
-  }
-
-  function closeMediaModal() {
-    setPendingMediaFiles((current) => {
-      current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-      return [];
-    });
-    setMediaCaptionDraft("");
-    setIsMediaModalOpen(false);
-  }
-
-  React.useEffect(() => {
-    pendingMediaFilesRef.current = pendingMediaFiles;
-  }, [pendingMediaFiles]);
-
-  React.useEffect(() => {
-    return () => {
-      pendingMediaFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
-  }, []);
-
-  async function handleAttachmentInputChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-    kind: AttachmentPickerKind,
-  ) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
-    if (files.length === 0) {
-      return;
-    }
-
-    if (kind === "photo_or_video") {
-      addMediaFiles(files);
-      return;
-    }
-
-    await onSendAttachment(files[0], kind);
-  }
-
-  async function handleSendPendingMedia() {
-    if (pendingMediaFiles.length === 0) {
-      return;
-    }
-
-    await onSendAttachmentBatch(
-      pendingMediaFiles.map((item) => item.file),
-      mediaCaptionDraft.trim(),
-    );
-    closeMediaModal();
-  }
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "10px",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          alignItems: "flex-end",
-          minWidth: 0,
-        }}
-      >
-        {replyTarget ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "stretch",
-              justifyContent: "space-between",
-              width: "100%",
-              gap: "10px",
-              padding: "8px 10px",
-              borderRadius: "10px",
-              background: "var(--mess-reply-bg)",
-              color: "var(--mess-text)",
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <Text style={{ display: "block", color: "var(--mess-reply-title)", fontWeight: 600 }}>
-                {`In reply to ${resolveMessageAuthor(replyTarget, selectedChatTitle)}`}
-              </Text>
-              <Text style={{ color: "var(--mess-text)" }}>
-                {shortenText(replyTarget.text)}
-              </Text>
-            </div>
-            <Button
-              type="text"
-              icon={<CloseOutlined />}
-              onClick={onCancelReply}
-              style={{ color: "var(--mess-text)" }}
-            />
-          </div>
-        ) : null}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          alignItems: "flex-end",
-          minWidth: 0,
-        }}
-      >
-        <Dropdown
-          trigger={["hover", "click"]}
-          placement="topLeft"
-          overlayClassName={messengerTheme === "mono" ? "messenger-mono-attach-menu" : undefined}
-          menu={{ items: attachmentMenuItems, onClick: handleAttachmentMenuClick }}
-          disabled={!isSocketConnected || isAttachmentUploading}
-        >
-          <Button
-            size="large"
-            icon={<PaperClipOutlined />}
-            aria-label="Attach file"
-            title="Attach file"
-            disabled={!isSocketConnected || isAttachmentUploading}
-          />
-        </Dropdown>
-        <input
-          ref={photoVideoInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          style={{ display: "none" }}
-          onChange={(event) => {
-            void handleAttachmentInputChange(event, "photo_or_video");
-          }}
-        />
-        <input
-          ref={documentInputRef}
-          type="file"
-          accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.ppt,.pptx,.zip,.rar,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          style={{ display: "none" }}
-          onChange={(event) => {
-            void handleAttachmentInputChange(event, "document");
-          }}
-        />
-        <TextArea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onPressEnter={(event) => {
-            if (!event.shiftKey) {
-              event.preventDefault();
-              handleSendClick();
-            }
-          }}
-          placeholder="Type a message"
-          autoSize={{ minRows: 1, maxRows: 4 }}
-          style={{ minWidth: 0 }}
-          disabled={!isSocketConnected}
-        />
-        <Button
-          size="large"
-          icon={<SmileOutlined />}
-          aria-label="Open emoji picker"
-          title="Open emoji picker"
-          onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-          disabled={!isSocketConnected || isAttachmentUploading}
-        />
-        <Button
-          type="primary"
-          onClick={handleSendClick}
-          disabled={!draft.trim() || !isSocketConnected}
-        >
-          Send
-        </Button>
-      </div>
-      {isEmojiPickerOpen ? (
-        <div style={{ width: "100%" }}>
-          <EmojiPicker
-            onEmojiClick={(emojiData) => appendEmoji(emojiData)}
-            lazyLoadEmojis
-            searchDisabled={false}
-            skinTonesDisabled={false}
-            width="100%"
-            height={360}
-          />
-        </div>
-      ) : null}
-      <AntdModal
-        title="Send media"
-        open={isMediaModalOpen}
-        onCancel={closeMediaModal}
-        destroyOnHidden
-        className="media-compose-modal"
-        footer={[
-          <Button key="cancel" onClick={closeMediaModal}>
-            Cancel
-          </Button>,
-          <Button
-            key="add-more"
-            onClick={() => {
-              photoVideoInputRef.current?.click();
-            }}
-            disabled={!isSocketConnected || isAttachmentUploading}
-          >
-            Add more
-          </Button>,
-          <Button
-            key="send"
-            type="primary"
-            onClick={() => {
-              void handleSendPendingMedia();
-            }}
-            disabled={
-              pendingMediaFiles.length === 0 ||
-              !isSocketConnected ||
-              isAttachmentUploading
-            }
-            loading={isAttachmentUploading}
-          >
-            Send media
-          </Button>,
-        ]}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-              gap: "8px",
-              maxHeight: "320px",
-              overflowY: "auto",
-            }}
-          >
-            {pendingMediaFiles.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  position: "relative",
-                  border: "1px solid var(--mess-soft-border)",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  background: "var(--mess-shell-bg)",
-                }}
-              >
-                {item.file.type.startsWith("video/") ? (
-                  <video
-                    src={item.previewUrl}
-                    style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
-                    muted
-                  />
-                ) : (
-                  <Image
-                    src={item.previewUrl}
-                    alt={item.file.name}
-                    preview={false}
-                    style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
-                  />
-                )}
-                <Button
-                  size="small"
-                  danger
-                  onClick={() => removePendingMediaFile(item.id)}
-                  style={{ position: "absolute", top: "6px", right: "6px" }}
-                >
-                  Delete
-                </Button>
-              </div>
-            ))}
-          </div>
-          <TextArea
-            value={mediaCaptionDraft}
-            onChange={(event) => setMediaCaptionDraft(event.target.value)}
-            placeholder="Add caption"
-            autoSize={{ minRows: 2, maxRows: 5 }}
-            disabled={!isSocketConnected || isAttachmentUploading}
-          />
-        </div>
-      </AntdModal>
-    </div>
-  );
-}
-
-function ForwardMessageModalContent({
-  chats,
-  selectedChatId,
-  sourceMessage,
-  onCancel,
-  onConfirm,
-}: ForwardMessageModalContentProps) {
-  const [targetChatIds, setTargetChatIds] = React.useState<number[]>(
-    selectedChatId !== null ? [selectedChatId] : [],
-  );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <div
-        style={{
-          borderRadius: "8px",
-          padding: "8px 10px",
-          background: "var(--mess-soft-card-bg)",
-          border: "1px solid var(--mess-soft-border)",
-        }}
-      >
-        <Text style={{ color: "var(--mess-accent)", display: "block", marginBottom: "4px" }}>
-          Message to forward
-        </Text>
-        <Text style={{ whiteSpace: "pre-wrap", color: "var(--mess-text)" }}>
-          {shortenText(sourceMessage.text, 160)}
-        </Text>
-      </div>
-      <div style={{ maxHeight: "320px", overflowY: "auto", paddingRight: "6px" }}>
-        <Checkbox.Group
-          value={targetChatIds}
-          onChange={(values) => setTargetChatIds(values.map((value) => Number(value)))}
-          style={{ width: "100%" }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {chats.map((chat) => (
-              <label
-                key={chat.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  border: "1px solid var(--mess-soft-border)",
-                  borderRadius: "8px",
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                <Checkbox value={chat.id} />
-                <Avatar size={28} src={chat.avatar_url} icon={chat.type === "private" ? <HomeFilled /> : undefined} />
-                <Text ellipsis className="retro-pixel-text" style={{ minWidth: 0 }}>
-                  {chat.title || `Chat ${chat.id}`}
-                </Text>
-              </label>
-            ))}
-          </div>
-        </Checkbox.Group>
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button
-          type="primary"
-          disabled={targetChatIds.length === 0}
-          onClick={() => onConfirm(targetChatIds)}
-        >
-          Forward
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function GroupSettingsModalContent({
-  chats,
-  groups,
-  onSave,
-  onCancel,
-}: GroupSettingsModalContentProps) {
-  const [draftGroups, setDraftGroups] = React.useState<ChatFolderType[]>(groups);
-
-  const selectableChats = React.useMemo(
-    () => chats.filter((chat) => chat.type !== "private"),
-    [chats],
-  );
-
-  function updateGroupTitle(groupId: number, title: string) {
-    setDraftGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === groupId ? { ...group, title } : group,
-      ),
-    );
-  }
-
-  function updateGroupChats(groupId: number, chatIds: number[]) {
-    setDraftGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === groupId ? { ...group, chat_ids: chatIds } : group,
-      ),
-    );
-  }
-
-  function removeGroup(groupId: number) {
-    setDraftGroups((currentGroups) => currentGroups.filter((group) => group.id !== groupId));
-  }
-
-  function addGroup() {
-    setDraftGroups((currentGroups) => [
-      ...currentGroups,
-      { id: Date.now(), title: `Group ${currentGroups.length + 1}`, chat_ids: [] },
-    ]);
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <Text strong>{`Default group: ${ALL_CHATS_GROUP_TITLE}`}</Text>
-      {draftGroups.map((group) => (
-        <div
-          key={group.id}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            padding: "10px",
-            border: "1px solid var(--mess-soft-border)",
-            borderRadius: "8px",
-          }}
-        >
-          <Input
-            value={group.title}
-            onChange={(event) => updateGroupTitle(group.id, event.target.value)}
-            placeholder="Group name"
-          />
-          <Select
-            mode="multiple"
-            value={group.chat_ids}
-            onChange={(nextChatIds) => updateGroupChats(group.id, nextChatIds as number[])}
-            options={selectableChats.map((chat) => ({
-              label: chat.title || `Chat ${chat.id}`,
-              value: chat.id,
-            }))}
-            placeholder="Choose chats (private chats are excluded)"
-            style={{ width: "100%" }}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button danger size="small" onClick={() => removeGroup(group.id)}>
-              Remove
-            </Button>
-          </div>
-        </div>
-      ))}
-      <Button onClick={addGroup}>Add group</Button>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button
-          type="primary"
-          onClick={() => {
-            const preparedGroups = draftGroups
-              .map((group) => ({
-                ...group,
-                title: group.title.trim(),
-              }))
-              .filter((group) => group.title.length > 0);
-
-            if (preparedGroups.length !== draftGroups.length) {
-              antdMessage.error("Each group must have a name.");
-              return;
-            }
-
-            onSave(
-              preparedGroups.map((group) => ({
-                title: group.title,
-                chat_ids: group.chat_ids,
-              })),
-            );
-          }}
-        >
-          Save
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function Messenger() {
   const MESSAGES_PAGE_SIZE = 30;
@@ -1230,15 +141,31 @@ export default function Messenger() {
   const [isYouTubeApiReady, setIsYouTubeApiReady] = React.useState(false);
   const [isYouTubeApiBlocked, setIsYouTubeApiBlocked] = React.useState(false);
   const [isYouTubePlayerReady, setIsYouTubePlayerReady] = React.useState(false);
-  const [isWatchRoomSynced, setIsWatchRoomSynced] = React.useState(false);
+  const [syncedToUserId, setSyncedToUserId] = React.useState<number | null>(null);
   const [isWatchRoomSyncing, setIsWatchRoomSyncing] = React.useState(false);
   const [currentUserId, setCurrentUserId] = React.useState<number | null>(null);
   const [currentUsername, setCurrentUsername] = React.useState<string | null>(null);
   const [activeWatchRoom, setActiveWatchRoom] = React.useState<WatchRoomType | null>(null);
+  const [watchRoomChatMessagesByRoomId, setWatchRoomChatMessagesByRoomId] = React.useState<
+    Record<string, WatchRoomChatMessageType[]>
+  >({});
+  const [watchRoomReactionsByRoomId, setWatchRoomReactionsByRoomId] = React.useState<
+    Record<string, WatchRoomReactionView[]>
+  >({});
   const [watchRoomPlaybackSeconds, setWatchRoomPlaybackSeconds] = React.useState(0);
   const [watchRoomsByKey, setWatchRoomsByKey] = React.useState<Record<string, WatchRoomType>>({});
   const [isWatchRoomInviteModalOpen, setIsWatchRoomInviteModalOpen] = React.useState(false);
   const [watchRoomInviteUserId, setWatchRoomInviteUserId] = React.useState<number | null>(null);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = React.useState(false);
+  const [isExpenseSubmitting, setIsExpenseSubmitting] = React.useState(false);
+  const [isExpenseMarkingPaid, setIsExpenseMarkingPaid] = React.useState(false);
+  const [expenseParticipants, setExpenseParticipants] = React.useState<ContactType[]>([]);
+  const [expenseOverview, setExpenseOverview] = React.useState<ExpenseOverviewType | null>(null);
+  const [isExpensesViewOpen, setIsExpensesViewOpen] = React.useState(false);
+  const [isExpensesViewLoading, setIsExpensesViewLoading] = React.useState(false);
+  const [expensesPanelWidth, setExpensesPanelWidth] = React.useState(360);
+  const [chatExpenses, setChatExpenses] = React.useState<ExpenseType[]>([]);
+  const [expensePayments, setExpensePayments] = React.useState<ExpensePaymentType[]>([]);
   const [linkPreviewByUrl, setLinkPreviewByUrl] = React.useState<
     Record<string, {
       url: string;
@@ -1251,11 +178,16 @@ export default function Messenger() {
   >({});
   const requestedYouTubePreviewUrlsRef = React.useRef<Set<string>>(new Set());
   const unavailableWatchRoomKeysRef = React.useRef<Set<string>>(new Set());
-  const watchRoomAutoSyncInFlightRef = React.useRef(false);
+  const syncEnsureTimeoutsRef = React.useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const syncedToUserIdRef = React.useRef<number | null>(null);
+  const activeWatchRoomIdRef = React.useRef<string | null>(null);
+  const activeWatchRoomRef = React.useRef<WatchRoomType | null>(null);
+  const isSocketConnectedRef = React.useRef(false);
+  const lastWatchRoomPlaybackSentAtRef = React.useRef(0);
+  const suppressUnsyncUntilRef = React.useRef(0);
   const [youTubePlayerHostElement, setYouTubePlayerHostElement] = React.useState<HTMLDivElement | null>(null);
   const youTubePlayerRef = React.useRef<YouTubePlayerLike | null>(null);
   const youTubeApiReadyRef = React.useRef(false);
-  const watchRoomSyncStateRef = React.useRef<{ revision: number; isPlaying: boolean } | null>(null);
   const socketRef = React.useRef<WebSocket | null>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
   const messageElementsRef = React.useRef<Map<number, HTMLDivElement>>(new Map());
@@ -1277,8 +209,116 @@ export default function Messenger() {
   const chatsSyncRequestsRef = React.useRef(0);
   const chatGroupsSyncRequestsRef = React.useRef(0);
   const didHydrateCacheRef = React.useRef(false);
+  const isResizingExpensesPanelRef = React.useRef(false);
+  const isExpenseFeatureEnabled = ENABLE_EXPENSE_SPLIT_FEATURE;
   const handleYouTubePlayerHostRef = React.useCallback((node: HTMLDivElement | null) => {
+    if (!node) {
+      return;
+    }
     setYouTubePlayerHostElement(node);
+  }, []);
+  const isYouTubePlayerUsable = isYouTubePlayerReady && hasYouTubePlayerMethods(youTubePlayerRef.current);
+  const tryExtractWatchRoomReactionEmoji = React.useCallback((content: string) => {
+    if (!content.startsWith(WATCH_ROOM_REACTION_PREFIX)) {
+      return null;
+    }
+    const emoji = content.slice(WATCH_ROOM_REACTION_PREFIX.length).trim();
+    return emoji.length > 0 ? emoji : null;
+  }, []);
+  const appendWatchRoomReaction = React.useCallback((roomId: string, emoji: string) => {
+    const reactionId = `${roomId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const reaction: WatchRoomReactionView = {
+      id: reactionId,
+      emoji,
+      x_percent: 20 + Math.random() * 60,
+      y_percent: 65 + Math.random() * 20,
+    };
+    setWatchRoomReactionsByRoomId((current) => ({
+      ...current,
+      [roomId]: [...(current[roomId] ?? []), reaction],
+    }));
+    setTimeout(() => {
+      setWatchRoomReactionsByRoomId((current) => {
+        const existing = current[roomId] ?? [];
+        const next = existing.filter((item) => item.id !== reactionId);
+        if (next.length === existing.length) {
+          return current;
+        }
+        return {
+          ...current,
+          [roomId]: next,
+        };
+      });
+    }, 1700);
+  }, []);
+  const clampExpensesPanelWidth = React.useCallback((width: number) => {
+    if (typeof window === "undefined") {
+      return Math.max(280, Math.min(560, Math.round(width)));
+    }
+    const maxWidth = Math.max(320, Math.floor(window.innerWidth * 0.6));
+    return Math.max(280, Math.min(maxWidth, Math.round(width)));
+  }, []);
+  const clearSyncEnsureTimeouts = React.useCallback(() => {
+    syncEnsureTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+    syncEnsureTimeoutsRef.current = [];
+  }, []);
+  const resolveTargetPlaybackSeconds = React.useCallback(
+    (targetState: { current_time_seconds: number; is_playing: boolean; updated_at: number }) => {
+      const nowSeconds = Date.now() / 1000;
+      const transportLeadSeconds = 0.3;
+      return targetState.is_playing
+        ? targetState.current_time_seconds + Math.max(0, nowSeconds - targetState.updated_at) + transportLeadSeconds
+        : targetState.current_time_seconds;
+    },
+    [],
+  );
+  const applyTargetSyncStateToPlayer = React.useCallback(
+    (targetState: { current_time_seconds: number; is_playing: boolean; updated_at: number }) => {
+      const player = youTubePlayerRef.current;
+      if (!hasYouTubePlayerMethods(player)) {
+        return false;
+      }
+      const targetSeconds = Math.max(0, resolveTargetPlaybackSeconds(targetState));
+      suppressUnsyncUntilRef.current = Date.now() + 1200;
+      player.seekTo(targetSeconds, true);
+      if (targetState.is_playing) {
+        player.playVideo();
+      } else {
+        player.pauseVideo();
+      }
+      return true;
+    },
+    [resolveTargetPlaybackSeconds],
+  );
+  const sendWatchRoomPlaybackUpdate = React.useCallback((force: boolean = false) => {
+    const room = activeWatchRoomRef.current;
+    const socket = socketRef.current;
+    const player = youTubePlayerRef.current;
+    if (!room || !hasYouTubePlayerMethods(player)) {
+      return;
+    }
+    if (!isSocketConnectedRef.current || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const nowMs = Date.now();
+    const minIntervalMs = 350;
+    if (!force && nowMs - lastWatchRoomPlaybackSentAtRef.current < minIntervalMs) {
+      return;
+    }
+
+    const currentTime = player.getCurrentTime();
+    const isPlaying = player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+    socket.send(
+      JSON.stringify({
+        action: "watch_room_playback",
+        chat_id: room.chat_id,
+        room_id: room.id,
+        current_time_seconds: currentTime,
+        is_playing: isPlaying,
+      }),
+    );
+    lastWatchRoomPlaybackSentAtRef.current = nowMs;
   }, []);
   const refreshChats = React.useCallback(async () => {
     chatsSyncRequestsRef.current += 1;
@@ -1402,6 +442,69 @@ export default function Messenger() {
       .catch(() => undefined);
   }, []);
 
+  const refreshExpenseContext = React.useCallback(async (chatId: number) => {
+    const [participantsRes, overviewRes] = await Promise.all([
+      MessengerApi.getChatParticipants(chatId),
+      MessengerApi.getChatExpenseOverview(chatId),
+    ]);
+    setExpenseParticipants(participantsRes.data);
+    setExpenseOverview(overviewRes.data);
+  }, []);
+
+  const refreshExpensesViewData = React.useCallback(async (chatId: number) => {
+    const [expensesRes, paymentsRes, overviewRes, participantsRes] = await Promise.all([
+      MessengerApi.getChatExpenses(chatId),
+      MessengerApi.getChatExpensePayments(chatId),
+      MessengerApi.getChatExpenseOverview(chatId),
+      MessengerApi.getChatParticipants(chatId),
+    ]);
+    setChatExpenses(expensesRes.data);
+    setExpensePayments(paymentsRes.data);
+    setExpenseOverview(overviewRes.data);
+    setExpenseParticipants(participantsRes.data);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isExpenseModalOpen || selectedChatId === null) {
+      return;
+    }
+    void refreshExpenseContext(selectedChatId).catch(() => undefined);
+  }, [isExpenseModalOpen, selectedChatId, refreshExpenseContext]);
+
+  React.useEffect(() => {
+    if (!isExpensesViewOpen || selectedChatId === null) {
+      return;
+    }
+    setIsExpensesViewLoading(true);
+    void refreshExpensesViewData(selectedChatId)
+      .catch(() => undefined)
+      .finally(() => setIsExpensesViewLoading(false));
+  }, [isExpensesViewOpen, selectedChatId, refreshExpensesViewData]);
+
+  React.useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isResizingExpensesPanelRef.current) {
+        return;
+      }
+      const nextWidth = clampExpensesPanelWidth(window.innerWidth - event.clientX);
+      setExpensesPanelWidth(nextWidth);
+    };
+    const handleMouseUp = () => {
+      if (!isResizingExpensesPanelRef.current) {
+        return;
+      }
+      isResizingExpensesPanelRef.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [clampExpensesPanelWidth]);
+
   const watchRoomViewerItems = React.useMemo(() => {
     if (!activeWatchRoom) {
       return [];
@@ -1415,11 +518,78 @@ export default function Messenger() {
       return {
         userId,
         username,
-        isHost: userId === activeWatchRoom.host_user_id,
         isCurrentUser,
       };
     });
   }, [activeWatchRoom, availableUsers, currentUserId, currentUsername]);
+
+  const syncTargetViewerItems = React.useMemo(
+    () => watchRoomViewerItems.filter((viewer) => !viewer.isCurrentUser),
+    [watchRoomViewerItems],
+  );
+
+  const syncedToUserName = React.useMemo(
+    () => watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)?.username ?? null,
+    [watchRoomViewerItems, syncedToUserId],
+  );
+  const activeWatchRoomChatMessages = React.useMemo(
+    () => (activeWatchRoom ? watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? [] : []),
+    [activeWatchRoom, watchRoomChatMessagesByRoomId],
+  );
+  const activeWatchRoomReactions = React.useMemo(
+    () => (activeWatchRoom ? watchRoomReactionsByRoomId[activeWatchRoom.id] ?? [] : []),
+    [activeWatchRoom, watchRoomReactionsByRoomId],
+  );
+
+  React.useEffect(() => {
+    syncedToUserIdRef.current = syncedToUserId;
+  }, [syncedToUserId]);
+
+  React.useEffect(() => {
+    activeWatchRoomIdRef.current = activeWatchRoom?.id ?? null;
+  }, [activeWatchRoom?.id]);
+
+  React.useEffect(() => {
+    activeWatchRoomRef.current = activeWatchRoom;
+  }, [activeWatchRoom]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom?.id) {
+      return;
+    }
+    const roomId = activeWatchRoom.id;
+    void MessengerApi.getWatchRoomMessages(roomId, 120)
+      .then(({ data }) => {
+        const filteredMessages = data.filter((message) => !tryExtractWatchRoomReactionEmoji(message.content));
+        setWatchRoomChatMessagesByRoomId((current) => ({
+          ...current,
+          [roomId]: filteredMessages,
+        }));
+      })
+      .catch(() => undefined);
+  }, [activeWatchRoom?.id, tryExtractWatchRoomReactionEmoji]);
+
+  React.useEffect(() => {
+    isSocketConnectedRef.current = isSocketConnected;
+  }, [isSocketConnected]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom?.id) {
+      lastWatchRoomPlaybackSentAtRef.current = 0;
+    }
+  }, [activeWatchRoom?.id]);
+
+  React.useEffect(() => {
+    if (syncedToUserId === null) {
+      clearSyncEnsureTimeouts();
+    }
+  }, [clearSyncEnsureTimeouts, syncedToUserId]);
+
+  React.useEffect(() => {
+    return () => {
+      clearSyncEnsureTimeouts();
+    };
+  }, [clearSyncEnsureTimeouts]);
 
   React.useEffect(() => {
     if (selectedChatId === null) {
@@ -1438,8 +608,6 @@ export default function Messenger() {
       return;
     }
 
-    let isCancelled = false;
-
     const loadRooms = async () => {
       for (const youtubeId of youtubeIds) {
         const roomKey = watchRoomMapKey(selectedChatId, youtubeId);
@@ -1448,18 +616,12 @@ export default function Messenger() {
         }
         try {
           const { data } = await MessengerApi.getWatchRoomByChat(selectedChatId, youtubeId);
-          if (isCancelled) {
-            return;
-          }
           unavailableWatchRoomKeysRef.current.delete(roomKey);
           setWatchRoomsByKey((current) => ({
             ...current,
             [roomKey]: data,
           }));
         } catch {
-          if (isCancelled) {
-            return;
-          }
           unavailableWatchRoomKeysRef.current.add(roomKey);
           setWatchRoomsByKey((current) => {
             const next = { ...current };
@@ -1471,14 +633,6 @@ export default function Messenger() {
     };
 
     void loadRooms();
-    const intervalId = setInterval(() => {
-      void loadRooms();
-    }, 5000);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(intervalId);
-    };
   }, [selectedChatId, selectedMessages]);
 
   React.useEffect(() => {
@@ -1508,46 +662,6 @@ export default function Messenger() {
       clearInterval(intervalId);
     };
   }, [activeWatchRoom?.id, activeWatchRoom?.sync_revision, activeWatchRoom?.sync_current_time_seconds, activeWatchRoom?.sync_is_playing]);
-
-  React.useEffect(() => {
-    const roomId = activeWatchRoom?.id;
-    if (!roomId) {
-      return;
-    }
-
-    let isCancelled = false;
-    const refreshRoom = async () => {
-      try {
-        const { data } = await MessengerApi.getWatchRoom(roomId);
-        if (isCancelled) {
-          return;
-        }
-        setActiveWatchRoom(data);
-        setWatchRoomsByKey((current) => ({
-          ...current,
-          [watchRoomMapKey(data.chat_id, data.youtube_video_id)]: data,
-        }));
-      } catch {
-        if (!isCancelled) {
-          watchRoomSyncStateRef.current = null;
-          setIsYouTubePlayerReady(false);
-          setActiveWatchRoom(null);
-          setYoutubePreviewVideoId(null);
-          setIsWatchRoomInviteModalOpen(false);
-          setWatchRoomInviteUserId(null);
-        }
-      }
-    };
-
-    const intervalId = setInterval(() => {
-      void refreshRoom();
-    }, 3000);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(intervalId);
-    };
-  }, [activeWatchRoom?.id]);
 
   const handleOpenGroupSettings = React.useCallback(() => {
     setModal({
@@ -1759,7 +873,6 @@ export default function Messenger() {
       return;
     }
 
-    watchRoomSyncStateRef.current = null;
     setIsYouTubePlayerReady(false);
     const previousPlayer = youTubePlayerRef.current;
     if (hasYouTubePlayerMethods(previousPlayer)) {
@@ -1767,7 +880,15 @@ export default function Messenger() {
     }
     youTubePlayerRef.current = null;
 
-    const createdPlayer = new window.YT.Player(youTubePlayerHostElement, {
+    youTubePlayerHostElement.innerHTML = "";
+    const playerMountNode = document.createElement("div");
+    playerMountNode.style.width = "100%";
+    playerMountNode.style.height = "100%";
+    youTubePlayerHostElement.appendChild(playerMountNode);
+
+    const createdPlayer = new window.YT.Player(playerMountNode, {
+      width: "100%",
+      height: "100%",
       videoId: youtubePreviewVideoId,
       playerVars: {
         autoplay: 1,
@@ -1779,25 +900,46 @@ export default function Messenger() {
       },
       events: {
         onReady: (event) => {
-          if (!hasYouTubePlayerMethods(event.target)) {
+          const playerInstance = hasYouTubePlayerMethods(event.target)
+            ? event.target
+            : (hasYouTubePlayerMethods(createdPlayer) ? createdPlayer : null);
+          if (!playerInstance) {
+            setIsYouTubePlayerReady(false);
+            setIsYouTubeApiBlocked(true);
             return;
           }
-          youTubePlayerRef.current = event.target;
+          youTubePlayerRef.current = playerInstance;
           setIsYouTubePlayerReady(true);
           setIsYouTubeApiBlocked(false);
-          const isCurrentUserHost =
-            currentUserId !== null && activeWatchRoom?.host_user_id === currentUserId;
-          setIsWatchRoomSynced(Boolean(isCurrentUserHost));
-          event.target.seekTo(initialSyncSeconds, true);
+          setSyncedToUserId(null);
+          suppressUnsyncUntilRef.current = Date.now() + 1500;
+          playerInstance.seekTo(initialSyncSeconds, true);
           if (initialSyncIsPlaying) {
-            event.target.playVideo();
+            playerInstance.playVideo();
           } else {
-            event.target.pauseVideo();
+            playerInstance.pauseVideo();
           }
         },
         onError: () => {
           setIsYouTubePlayerReady(false);
           setIsYouTubeApiBlocked(true);
+        },
+        onStateChange: (event) => {
+          if (syncedToUserIdRef.current === null) {
+            sendWatchRoomPlaybackUpdate(true);
+            return;
+          }
+          if (Date.now() < suppressUnsyncUntilRef.current) {
+            sendWatchRoomPlaybackUpdate(true);
+            return;
+          }
+          const state = event.data;
+          const unstartedState = -1;
+          const endedState = 0;
+          if (state === unstartedState || state === endedState) {
+            setSyncedToUserId(null);
+          }
+          sendWatchRoomPlaybackUpdate(true);
         },
       },
     });
@@ -1814,13 +956,15 @@ export default function Messenger() {
 
     return () => {
       clearTimeout(playerReadyTimeoutId);
-      watchRoomSyncStateRef.current = null;
       setIsYouTubePlayerReady(false);
       if (hasYouTubePlayerMethods(youTubePlayerRef.current)) {
         youTubePlayerRef.current.destroy();
       }
       if (hasYouTubePlayerMethods(createdPlayer)) {
         createdPlayer.destroy();
+      }
+      if (youTubePlayerHostElement) {
+        youTubePlayerHostElement.innerHTML = "";
       }
       youTubePlayerRef.current = null;
     };
@@ -1831,47 +975,57 @@ export default function Messenger() {
     activeWatchRoom?.host_user_id,
     currentUserId,
     youTubePlayerHostElement,
+    sendWatchRoomPlaybackUpdate,
   ]);
 
   React.useEffect(() => {
-    const syncRevision = activeWatchRoom?.sync_revision;
-    const syncSeconds = activeWatchRoom?.sync_current_time_seconds;
-    const syncIsPlaying = activeWatchRoom?.sync_is_playing;
-    if (
-      syncRevision === undefined ||
-      syncSeconds === undefined ||
-      syncIsPlaying === undefined ||
-      !isYouTubePlayerReady ||
-      !hasYouTubePlayerMethods(youTubePlayerRef.current)
-    ) {
+    if (isYouTubePlayerUsable || syncedToUserId === null) {
       return;
     }
-    const last = watchRoomSyncStateRef.current;
-    if (last && last.revision === syncRevision) {
-      return;
-    }
-    watchRoomSyncStateRef.current = {
-      revision: syncRevision,
-      isPlaying: syncIsPlaying,
-    };
-    const player = youTubePlayerRef.current;
-    if (!hasYouTubePlayerMethods(player)) {
-      return;
-    }
-    player.seekTo(syncSeconds, true);
-    if (syncIsPlaying) {
-      player.playVideo();
-    } else {
-      player.pauseVideo();
-    }
-    setIsWatchRoomSynced(true);
-  }, [isYouTubePlayerReady, activeWatchRoom?.sync_revision, activeWatchRoom?.sync_current_time_seconds, activeWatchRoom?.sync_is_playing]);
+    setSyncedToUserId(null);
+  }, [isYouTubePlayerUsable, syncedToUserId]);
 
   React.useEffect(() => {
     if (
       !activeWatchRoom ||
-      !isYouTubePlayerReady ||
-      !hasYouTubePlayerMethods(youTubePlayerRef.current)
+      !isYouTubePlayerUsable ||
+      syncedToUserId === null
+    ) {
+      return;
+    }
+
+    const targetState = getViewerSyncStates(activeWatchRoom).find((state) => state.user_id === syncedToUserId);
+    if (!targetState) {
+      setSyncedToUserId(null);
+      return;
+    }
+
+    const player = youTubePlayerRef.current;
+    if (!hasYouTubePlayerMethods(player)) {
+      return;
+    }
+
+    const expectedSeconds = resolveTargetPlaybackSeconds(targetState);
+    const localSeconds = player.getCurrentTime();
+    const driftSeconds = Math.abs(localSeconds - expectedSeconds);
+    const localIsPlaying = player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+    const isPlaybackStateMismatched = localIsPlaying !== targetState.is_playing;
+    if (isPlaybackStateMismatched || driftSeconds > 0.75) {
+      void applyTargetSyncStateToPlayer(targetState);
+    }
+  }, [
+    activeWatchRoom,
+    isYouTubePlayerUsable,
+    syncedToUserId,
+    resolveTargetPlaybackSeconds,
+    applyTargetSyncStateToPlayer,
+  ]);
+
+  React.useEffect(() => {
+    if (
+      !activeWatchRoom ||
+      !isYouTubePlayerUsable ||
+      syncedToUserId === null
     ) {
       return;
     }
@@ -1882,69 +1036,45 @@ export default function Messenger() {
         return;
       }
 
-      const driftSeconds = Math.abs(player.getCurrentTime() - watchRoomPlaybackSeconds);
-      if (driftSeconds > 1.2) {
-        setIsWatchRoomSynced(false);
+      const targetState = getViewerSyncStates(activeWatchRoom).find((state) => state.user_id === syncedToUserId);
+      if (!targetState) {
+        setSyncedToUserId(null);
+        return;
+      }
+
+      const expectedSeconds = resolveTargetPlaybackSeconds(targetState);
+      const driftSeconds = Math.abs(player.getCurrentTime() - expectedSeconds);
+      if (driftSeconds > 1.3) {
+        setSyncedToUserId(null);
       }
     }, 700);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeWatchRoom?.id, isYouTubePlayerReady, watchRoomPlaybackSeconds]);
+  }, [activeWatchRoom, isYouTubePlayerUsable, resolveTargetPlaybackSeconds, syncedToUserId]);
 
   React.useEffect(() => {
-    if (!activeWatchRoom || currentUserId === null) {
+    if (!activeWatchRoom || !isYouTubePlayerUsable) {
       return;
     }
-    const isCurrentUserHost = activeWatchRoom.host_user_id === currentUserId;
-    if (!isCurrentUserHost) {
+    if (!isSocketConnected || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    let isCancelled = false;
+    sendWatchRoomPlaybackUpdate(true);
     const intervalId = setInterval(() => {
-      if (isCancelled || watchRoomAutoSyncInFlightRef.current) {
-        return;
-      }
-      const player = youTubePlayerRef.current;
-      const currentTime = hasYouTubePlayerMethods(player)
-        ? player.getCurrentTime()
-        : watchRoomPlaybackSeconds;
-      const isPlaying = hasYouTubePlayerMethods(player)
-        ? player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1)
-        : (activeWatchRoom.sync_is_playing ?? true);
-
-      watchRoomAutoSyncInFlightRef.current = true;
-      void MessengerApi.syncWatchRoom(activeWatchRoom.id, currentTime, isPlaying)
-        .then(({ data }) => {
-          if (isCancelled) {
-            return;
-          }
-          setActiveWatchRoom((current) => (current?.id === data.id ? data : current));
-          setWatchRoomsByKey((current) => ({
-            ...current,
-            [watchRoomMapKey(data.chat_id, data.youtube_video_id)]: data,
-          }));
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          watchRoomAutoSyncInFlightRef.current = false;
-        });
-    }, 2000);
+      sendWatchRoomPlaybackUpdate(false);
+    }, 450);
 
     return () => {
-      isCancelled = true;
       clearInterval(intervalId);
-      watchRoomAutoSyncInFlightRef.current = false;
     };
   }, [
     activeWatchRoom?.id,
-    activeWatchRoom?.host_user_id,
-    activeWatchRoom?.sync_is_playing,
-    currentUserId,
-    isYouTubePlayerReady,
-    watchRoomPlaybackSeconds,
+    isYouTubePlayerUsable,
+    isSocketConnected,
+    sendWatchRoomPlaybackUpdate,
   ]);
 
   React.useEffect(() => {
@@ -2032,6 +1162,26 @@ export default function Messenger() {
               </div>
             </div>
           ),
+        });
+        return;
+      }
+
+      if (payload.type === "watch_room_chat_message") {
+        const nextRoomMessage = payload.message;
+        const reactionEmoji = tryExtractWatchRoomReactionEmoji(nextRoomMessage.content);
+        if (reactionEmoji) {
+          appendWatchRoomReaction(nextRoomMessage.room_id, reactionEmoji);
+          return;
+        }
+        setWatchRoomChatMessagesByRoomId((current) => {
+          const existingMessages = current[nextRoomMessage.room_id] ?? [];
+          if (existingMessages.some((message) => message.id === nextRoomMessage.id)) {
+            return current;
+          }
+          return {
+            ...current,
+            [nextRoomMessage.room_id]: [...existingMessages, nextRoomMessage],
+          };
         });
         return;
       }
@@ -2168,7 +1318,15 @@ export default function Messenger() {
       socket.close();
       socketRef.current = null;
     };
-  }, [closeModal, refreshChats, setChatMessages, setChats, setModal]);
+  }, [
+    appendWatchRoomReaction,
+    closeModal,
+    refreshChats,
+    setChatMessages,
+    setChats,
+    setModal,
+    tryExtractWatchRoomReactionEmoji,
+  ]);
 
   React.useEffect(() => {
     setReplyTarget(null);
@@ -2489,17 +1647,25 @@ export default function Messenger() {
     } catch {
       setChatMessages((current) => {
         const existingMessages = current[selectedChatId] ?? [];
-        const nextMessages = existingMessages.map((message) =>
-          message.id === optimisticMessageId
+        const nextMessages: ChatMessageType[] = existingMessages.map((message) => {
+          if (message.id !== optimisticMessageId) {
+            return message;
+          }
+
+          const nextAttachment = message.attachment
             ? {
-                ...message,
-                delivery_status: "pending",
-                attachment: message.attachment
-                  ? { ...message.attachment, status: "failed", upload_progress: undefined }
-                  : message.attachment,
+                ...message.attachment,
+                status: "failed" as const,
+                upload_progress: undefined,
               }
-            : message,
-        );
+            : undefined;
+
+          return {
+            ...message,
+            delivery_status: "pending",
+            attachment: nextAttachment,
+          };
+        });
 
         return {
           ...current,
@@ -2990,6 +2156,85 @@ export default function Messenger() {
     );
   }
 
+  async function handleCreateExpense(data: {
+    title: string;
+    amountMinor: number;
+    currency: string;
+    payerUserId: number | null;
+    participantUserIds: number[];
+    sharesMinor?: Array<{ user_id: number; share_minor: number }>;
+  }) {
+    if (selectedChatId === null || data.payerUserId === null) {
+      return;
+    }
+
+    try {
+      setIsExpenseSubmitting(true);
+      const { data: expense } = await MessengerApi.createExpense(selectedChatId, {
+        title: data.title,
+        amount_minor: data.amountMinor,
+        currency: data.currency,
+        payer_user_id: data.payerUserId,
+        participant_user_ids: data.participantUserIds,
+        shares_minor: data.sharesMinor,
+      });
+      await refreshExpenseContext(selectedChatId);
+      if (isExpensesViewOpen) {
+        await refreshExpensesViewData(selectedChatId);
+      }
+
+      const participantNameById = new Map<number, string>();
+      expenseParticipants.forEach((participant) => {
+        participantNameById.set(participant.id, participant.username);
+      });
+      const payerName = participantNameById.get(expense.payer_user_id) ?? `User ${expense.payer_user_id}`;
+      const shareLines = expense.shares
+        .filter((share) => share.user_id !== expense.payer_user_id)
+        .map((share) => {
+          const username = participantNameById.get(share.user_id) ?? `User ${share.user_id}`;
+          return `- ${username} owes ${(share.share_minor / 100).toFixed(2)} ${expense.currency}`;
+        });
+      const summaryText = [
+        `Split expense: ${expense.title}`,
+        `Total: ${(expense.amount_minor / 100).toFixed(2)} ${expense.currency}`,
+        `Paid by: ${payerName}`,
+        'Debts:',
+        ...(shareLines.length > 0 ? shareLines : ['- No debts']),
+      ].join('\n');
+
+      await MessengerApi.sendMessage(selectedChatId, summaryText);
+      antdMessage.success("Expense added.");
+      setIsExpenseModalOpen(false);
+    } catch {
+      antdMessage.error("Failed to create expense.");
+    } finally {
+      setIsExpenseSubmitting(false);
+    }
+  }
+
+  async function handleMarkExpenseSettlementPaid(payload: {
+    from_user_id: number;
+    to_user_id: number;
+    amount_minor: number;
+  }) {
+    if (selectedChatId === null) {
+      return;
+    }
+    try {
+      setIsExpenseMarkingPaid(true);
+      const { data } = await MessengerApi.markExpenseSettlementPaid(selectedChatId, payload);
+      setExpenseOverview(data);
+      if (isExpensesViewOpen) {
+        await refreshExpensesViewData(selectedChatId);
+      }
+      antdMessage.success("Settlement marked as paid.");
+    } catch {
+      antdMessage.error("Failed to mark settlement as paid.");
+    } finally {
+      setIsExpenseMarkingPaid(false);
+    }
+  }
+
   async function handleOpenYouTubeWatchRoom(videoId: string) {
     if (selectedChatId === null) {
       return;
@@ -3007,9 +2252,7 @@ export default function Messenger() {
 
       const { data: joinedRoom } = await MessengerApi.joinWatchRoom(room.id);
       setIsYouTubeApiBlocked(false);
-      setIsWatchRoomSynced(
-        currentUserId !== null && joinedRoom.host_user_id === currentUserId,
-      );
+      setSyncedToUserId(null);
       unavailableWatchRoomKeysRef.current.delete(
         watchRoomMapKey(joinedRoom.chat_id, joinedRoom.youtube_video_id),
       );
@@ -3024,52 +2267,68 @@ export default function Messenger() {
     }
   }
 
-  async function handleSyncWatchRoom() {
-    if (!activeWatchRoom) {
+  async function handleSyncWatchRoom(targetUserId: number) {
+    if (!activeWatchRoom || !hasYouTubePlayerMethods(youTubePlayerRef.current)) {
       return;
     }
 
-    const isCurrentUserHost =
-      currentUserId !== null && activeWatchRoom.host_user_id === currentUserId;
-
     try {
+      clearSyncEnsureTimeouts();
       setIsWatchRoomSyncing(true);
-      let data: WatchRoomType;
-      if (isCurrentUserHost) {
-        const currentTime = hasYouTubePlayerMethods(youTubePlayerRef.current)
-          ? youTubePlayerRef.current.getCurrentTime()
-          : watchRoomPlaybackSeconds;
-        const isPlaying =
-          hasYouTubePlayerMethods(youTubePlayerRef.current)
-            ? youTubePlayerRef.current.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1)
-            : (activeWatchRoom.sync_is_playing ?? true);
-        ({ data } = await MessengerApi.syncWatchRoom(activeWatchRoom.id, currentTime, isPlaying));
-      } else {
-        ({ data } = await MessengerApi.getWatchRoom(activeWatchRoom.id));
-        if (!hasYouTubePlayerMethods(youTubePlayerRef.current)) {
-          throw new Error("YouTube player is not ready");
-        }
-        youTubePlayerRef.current.seekTo(data.sync_current_time_seconds, true);
-        if (data.sync_is_playing) {
-          youTubePlayerRef.current.playVideo();
-        } else {
-          youTubePlayerRef.current.pauseVideo();
-        }
+      const { data } = await MessengerApi.getWatchRoom(activeWatchRoom.id);
+      const targetState = getViewerSyncStates(data).find((state) => state.user_id === targetUserId);
+      if (!targetState) {
+        throw new Error("Target user sync state not found");
+      }
+
+      const didApply = applyTargetSyncStateToPlayer(targetState);
+      if (!didApply) {
+        throw new Error("YouTube player is not ready");
       }
 
       setWatchRoomPlaybackSeconds(data.sync_current_time_seconds);
-      watchRoomSyncStateRef.current = {
-        revision: data.sync_revision,
-        isPlaying: data.sync_is_playing,
-      };
       setActiveWatchRoom(data);
       setWatchRoomsByKey((current) => ({
         ...current,
         [watchRoomMapKey(data.chat_id, data.youtube_video_id)]: data,
       }));
-      setIsWatchRoomSynced(true);
+      setSyncedToUserId(targetUserId);
+      const roomId = data.id;
+      [350, 1100, 2200].forEach((delayMs) => {
+        const timeoutId = setTimeout(() => {
+          if (
+            syncedToUserIdRef.current !== targetUserId ||
+            activeWatchRoomIdRef.current !== roomId
+          ) {
+            return;
+          }
+          void MessengerApi.getWatchRoom(roomId)
+            .then(({ data: latestRoom }) => {
+              if (
+                syncedToUserIdRef.current !== targetUserId ||
+                activeWatchRoomIdRef.current !== roomId
+              ) {
+                return;
+              }
+              const latestTargetState = getViewerSyncStates(latestRoom).find(
+                (state) => state.user_id === targetUserId,
+              );
+              if (!latestTargetState) {
+                return;
+              }
+              void applyTargetSyncStateToPlayer(latestTargetState);
+              setActiveWatchRoom(latestRoom);
+              setWatchRoomsByKey((current) => ({
+                ...current,
+                [watchRoomMapKey(latestRoom.chat_id, latestRoom.youtube_video_id)]: latestRoom,
+              }));
+            })
+            .catch(() => undefined);
+        }, delayMs);
+        syncEnsureTimeoutsRef.current.push(timeoutId);
+      });
     } catch {
-      setIsWatchRoomSynced(false);
+      setSyncedToUserId(null);
     } finally {
       setIsWatchRoomSyncing(false);
     }
@@ -3092,6 +2351,39 @@ export default function Messenger() {
     }
   }
 
+  function handleSendWatchRoomChatMessage(content: string) {
+    const room = activeWatchRoomRef.current;
+    const socket = socketRef.current;
+    if (!room || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    socket.send(
+      JSON.stringify({
+        action: "watch_room_chat_send",
+        chat_id: room.chat_id,
+        room_id: room.id,
+        content,
+      }),
+    );
+  }
+
+  function handleSendWatchRoomReaction(emoji: string) {
+    const room = activeWatchRoomRef.current;
+    const socket = socketRef.current;
+    if (!room || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const content = `${WATCH_ROOM_REACTION_PREFIX}${emoji}`;
+    socket.send(
+      JSON.stringify({
+        action: "watch_room_chat_send",
+        chat_id: room.chat_id,
+        room_id: room.id,
+        content,
+      }),
+    );
+  }
+
   async function handleCloseWatchRoom() {
     if (activeWatchRoom) {
       try {
@@ -3100,14 +2392,19 @@ export default function Messenger() {
         // ignore leave errors
       }
     }
-    watchRoomSyncStateRef.current = null;
+    clearSyncEnsureTimeouts();
     setIsYouTubePlayerReady(false);
-    setIsWatchRoomSynced(false);
+    setSyncedToUserId(null);
     setIsWatchRoomInviteModalOpen(false);
     setWatchRoomInviteUserId(null);
     setActiveWatchRoom(null);
     setYoutubePreviewVideoId(null);
   }
+
+  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map((viewer) => ({
+    key: String(viewer.userId),
+    label: viewer.username,
+  }));
 
   return (
     <Fragment>
@@ -3233,6 +2530,40 @@ export default function Messenger() {
               style={{ marginLeft: "8px" }}
               onClick={(event) => {
                 event.stopPropagation();
+                if (selectedChatId === null) {
+                  return;
+                }
+                setIsExpenseModalOpen(true);
+              }}
+              disabled={selectedChatId === null}
+              hidden={!isExpenseFeatureEnabled}
+            >
+              Split
+            </Button>
+            <Button
+              type="default"
+              size="small"
+              className="retro-pixel-text"
+              style={{ marginLeft: "8px" }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (selectedChatId === null) {
+                  return;
+                }
+                setIsExpensesViewOpen((current) => !current);
+              }}
+              disabled={selectedChatId === null}
+              hidden={!isExpenseFeatureEnabled}
+            >
+              Expenses
+            </Button>
+            <Button
+              type="default"
+              size="small"
+              className="retro-pixel-text"
+              style={{ marginLeft: "8px" }}
+              onClick={(event) => {
+                event.stopPropagation();
                 handleToggleMessengerTheme();
               }}
             >
@@ -3240,6 +2571,7 @@ export default function Messenger() {
             </Button>
           </div>
         </Header>
+        <div style={{ display: "flex", minHeight: 0, flex: 1 }}>
         <Content
           ref={messagesContainerRef}
           onScroll={handleMessagesScroll}
@@ -3265,6 +2597,7 @@ export default function Messenger() {
             overflowX: "hidden",
             minWidth: 0,
             position: "relative",
+            flex: 1,
           }}
         >
           {isMessagesDragOver ? (
@@ -3869,6 +3202,49 @@ export default function Messenger() {
             "Choose a chat from the list to start messaging."
           )}
         </Content>
+        {isExpenseFeatureEnabled && isExpensesViewOpen ? (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              isResizingExpensesPanelRef.current = true;
+              document.body.style.userSelect = "none";
+              document.body.style.cursor = "col-resize";
+            }}
+            style={{
+              width: "6px",
+              cursor: "col-resize",
+              background: "var(--line)",
+              opacity: 0.55,
+              transition: "opacity 0.15s ease",
+              flexShrink: 0,
+            }}
+          />
+        ) : null}
+        <div
+          style={{
+            width: isExpenseFeatureEnabled && isExpensesViewOpen ? `${expensesPanelWidth}px` : "0px",
+            transition: "width 0.2s ease",
+            background: "var(--mess-shell-bg)",
+            overflow: "hidden",
+            minHeight: 0,
+          }}
+        >
+          {isExpenseFeatureEnabled ? (
+            <ChatExpensesPanel
+              open={isExpensesViewOpen}
+              onClose={() => setIsExpensesViewOpen(false)}
+              messengerTheme={messengerTheme}
+              isLoading={isExpensesViewLoading}
+              participants={expenseParticipants}
+              expenses={chatExpenses}
+              overview={expenseOverview}
+              payments={expensePayments}
+            />
+          ) : null}
+        </div>
+        </div>
         <Footer
           style={{
             background: "var(--mess-header)",
@@ -3895,240 +3271,57 @@ export default function Messenger() {
         </Footer>
       </Layout>
       </div>
-      <AntdModal
-        title="YouTube video"
-        open={youtubePreviewVideoId !== null}
-        onCancel={() => {
+      <YouTubeWatchRoomModals
+        messengerTheme={messengerTheme}
+        youtubePreviewVideoId={youtubePreviewVideoId}
+        activeWatchRoom={activeWatchRoom}
+        isWatchRoomSyncing={isWatchRoomSyncing}
+        isYouTubePlayerUsable={isYouTubePlayerUsable}
+        isYouTubeApiBlocked={isYouTubeApiBlocked}
+        syncedToUserId={syncedToUserId}
+        syncedToUserName={syncedToUserName}
+        syncTargetMenuItems={syncTargetMenuItems}
+        watchRoomViewerItems={watchRoomViewerItems}
+        watchRoomChatMessages={activeWatchRoomChatMessages}
+        watchRoomReactions={activeWatchRoomReactions}
+        currentUserId={currentUserId}
+        isSocketConnected={isSocketConnected}
+        isWatchRoomInviteModalOpen={isWatchRoomInviteModalOpen}
+        watchRoomInviteUserId={watchRoomInviteUserId}
+        availableUsers={availableUsers}
+        onCloseWatchRoom={() => {
           void handleCloseWatchRoom();
         }}
-        footer={null}
-        destroyOnHidden
-        width="94vw"
-        className={
-          messengerTheme === "mono"
-            ? "youtube-preview-modal watch-room-modal watch-room-modal-mono"
-            : "youtube-preview-modal watch-room-modal watch-room-modal-retro"
-        }
-      >
-        {youtubePreviewVideoId ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <Text
-                className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-                style={{ color: "var(--mess-muted-text)" }}
-              >
-                Viewers: {activeWatchRoom?.viewer_count ?? 1}
-              </Text>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <Button
-                  className={
-                    messengerTheme === "mono"
-                      ? `watch-room-btn watch-room-btn-mono ${isWatchRoomSynced ? "watch-room-btn-synced watch-room-btn-synced-mono" : ""}`
-                      : `watch-room-btn ${isWatchRoomSynced ? "watch-room-btn-synced" : ""}`
-                  }
-                  disabled={!activeWatchRoom || isWatchRoomSyncing || !isYouTubePlayerReady}
-                  onClick={() => void handleSyncWatchRoom()}
-                >
-                  {isWatchRoomSyncing ? "Syncing..." : isWatchRoomSynced ? "Synced" : "Sync"}
-                </Button>
-                <Button
-                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
-                  onClick={() => setIsWatchRoomInviteModalOpen(true)}
-                >
-                  Invite
-                </Button>
-                <Button
-                  danger
-                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
-                  onClick={() => {
-                    void handleCloseWatchRoom();
-                  }}
-                >
-                  Leave room
-                </Button>
-              </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                alignItems: "stretch",
-                flexWrap: "nowrap",
-              }}
-            >
-              <div
-                style={{
-                  position: "relative",
-                  flex: "1 1 auto",
-                  minWidth: 0,
-                  paddingTop: "56.25%",
-                  borderRadius: "10px",
-                  overflow: "hidden",
-                  background: "#000000",
-                }}
-              >
-                <div
-                  ref={handleYouTubePlayerHostRef}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                  }}
-                />
-                {!isYouTubePlayerReady && !isYouTubeApiBlocked ? (
-                  <div
-                    className={
-                      messengerTheme === "mono"
-                        ? "youtube-player-loading-overlay youtube-player-loading-overlay-mono"
-                        : "youtube-player-loading-overlay"
-                    }
-                  >
-                    <LoadingOutlined />
-                    <span>Loading player...</span>
-                  </div>
-                ) : null}
-              </div>
-              <div
-                className={
-                  messengerTheme === "mono"
-                    ? "watch-room-viewers-panel watch-room-viewers-panel-mono"
-                    : "watch-room-viewers-panel"
-                }
-                style={{ flex: "0 0 220px", maxWidth: "220px" }}
-              >
-                <Text className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}>
-                  Viewers
-                </Text>
-                <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {watchRoomViewerItems.map((viewer) => (
-                    <div key={viewer.userId} className="watch-room-viewer-row">
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                        <Avatar size={24}>
-                          {viewer.username.slice(0, 1).toUpperCase()}
-                        </Avatar>
-                        <Text
-                          className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-                          style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                        >
-                          {viewer.username}{viewer.isCurrentUser ? " (You)" : ""}
-                        </Text>
-                      </div>
-                      {viewer.isHost ? (
-                        <CrownFilled className="watch-room-host-crown" />
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <Text
-              className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-              style={{ color: "var(--mess-muted-text)" }}
-            >
-              Use Sync to align playback for everyone in the room.
-            </Text>
-            {isYouTubeApiBlocked ? (
-              <Text style={{ color: "var(--mess-muted-text)" }}>
-                YouTube player API is unavailable in this browser/session. Fallback mode is active.
-              </Text>
-            ) : null}
-          </div>
-        ) : null}
-      </AntdModal>
-      <AntdModal
-        title="Invite Viewer"
-        open={isWatchRoomInviteModalOpen}
-        onCancel={() => {
+        onSyncTargetSelect={(targetUserId) => {
+          void handleSyncWatchRoom(targetUserId);
+        }}
+        onOpenInviteModal={() => setIsWatchRoomInviteModalOpen(true)}
+        onCloseInviteModal={() => {
           setIsWatchRoomInviteModalOpen(false);
           setWatchRoomInviteUserId(null);
         }}
-        destroyOnHidden
-        width="94vw"
-        className={
-          messengerTheme === "mono"
-            ? "youtube-preview-modal watch-room-modal watch-room-invite-modal watch-room-modal-mono"
-            : "youtube-preview-modal watch-room-modal watch-room-invite-modal watch-room-modal-retro"
-        }
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => {
-              setIsWatchRoomInviteModalOpen(false);
-              setWatchRoomInviteUserId(null);
-            }}
-          >
-            Cancel
-          </Button>,
-          <Button
-            key="invite"
-            type="primary"
-            disabled={watchRoomInviteUserId === null}
-            onClick={() => void handleInviteToWatchRoom()}
-          >
-            Invite
-          </Button>,
-        ]}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <Text style={{ color: "var(--mess-muted-text)" }}>
-            Select a user to invite into this watch room.
-          </Text>
-          <div
-            className={
-              messengerTheme === "mono"
-                ? "watch-room-invite-list watch-room-invite-list-mono"
-                : "watch-room-invite-list"
-            }
-          >
-            {availableUsers
-              .filter((user) => !activeWatchRoom?.viewer_user_ids.includes(user.id))
-              .map((user) => {
-                const isSelected = watchRoomInviteUserId === user.id;
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className={
-                      messengerTheme === "mono"
-                        ? `watch-room-invite-item watch-room-invite-item-mono ${isSelected ? "watch-room-invite-item-selected watch-room-invite-item-selected-mono" : ""}`
-                        : `watch-room-invite-item ${isSelected ? "watch-room-invite-item-selected" : ""}`
-                    }
-                    onClick={() => setWatchRoomInviteUserId(user.id)}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                      <Avatar size={28} src={user.avatar_url}>
-                        {user.username.slice(0, 1).toUpperCase()}
-                      </Avatar>
-                      <Text
-                        className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-                        style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                      >
-                        {user.username}
-                      </Text>
-                    </div>
-                    {isSelected ? <CheckOutlined /> : null}
-                  </button>
-                );
-              })}
-            {availableUsers.filter((user) => !activeWatchRoom?.viewer_user_ids.includes(user.id)).length === 0 ? (
-              <Text
-                className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-                style={{ color: "var(--mess-muted-text)" }}
-              >
-                No users available to invite.
-              </Text>
-            ) : null}
-          </div>
-        </div>
-      </AntdModal>
+        onInviteUserSelect={(userId) => setWatchRoomInviteUserId(userId)}
+        onInviteConfirm={() => {
+          void handleInviteToWatchRoom();
+        }}
+        onSendWatchRoomChatMessage={handleSendWatchRoomChatMessage}
+        onSendWatchRoomReaction={handleSendWatchRoomReaction}
+        handleYouTubePlayerHostRef={handleYouTubePlayerHostRef}
+      />
+      {isExpenseFeatureEnabled ? (
+        <ExpenseSplitModal
+          open={isExpenseModalOpen}
+          participants={expenseParticipants}
+          currentUserId={currentUserId}
+          overview={expenseOverview}
+          messengerTheme={messengerTheme}
+          isSubmitting={isExpenseSubmitting}
+          isMarkingPaid={isExpenseMarkingPaid}
+          onCancel={() => setIsExpenseModalOpen(false)}
+          onCreate={handleCreateExpense}
+          onMarkSettlementPaid={handleMarkExpenseSettlementPaid}
+        />
+      ) : null}
       <AppModal />
     </Fragment>
   );

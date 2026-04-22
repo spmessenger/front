@@ -132,7 +132,15 @@ export interface WatchRoomType {
   sync_revision: number;
   sync_current_time_seconds: number;
   sync_is_playing: boolean;
+  viewer_sync_states: WatchRoomViewerSyncStateType[];
   created_at: number;
+}
+
+export interface WatchRoomViewerSyncStateType {
+  user_id: number;
+  current_time_seconds: number;
+  is_playing: boolean;
+  updated_at: number;
 }
 
 export interface WatchRoomInviteType {
@@ -145,6 +153,15 @@ export interface WatchRoomInviteType {
   target_chat_id?: number | null;
   youtube_video_id: string;
   status: "pending" | "accepted" | "declined";
+  created_at: number;
+}
+
+export interface WatchRoomChatMessageType {
+  id: string;
+  room_id: string;
+  user_id: number;
+  username: string;
+  content: string;
   created_at: number;
 }
 
@@ -186,4 +203,65 @@ export interface ChatFolderType {
 export interface ChatFolderReplaceItemType {
   title: string;
   chat_ids: number[];
+}
+
+export interface ExpenseParticipantShareInputType {
+  user_id: number;
+  share_minor: number;
+}
+
+export interface ExpenseCreatePayloadType {
+  title: string;
+  amount_minor: number;
+  currency: string;
+  payer_user_id: number;
+  participant_user_ids: number[];
+  shares_minor?: ExpenseParticipantShareInputType[];
+}
+
+export interface ExpenseParticipantShareType {
+  user_id: number;
+  share_minor: number;
+}
+
+export interface ExpenseType {
+  id: string;
+  chat_id: number;
+  title: string;
+  amount_minor: number;
+  currency: string;
+  payer_user_id: number;
+  created_by_user_id: number;
+  created_at: number;
+  shares: ExpenseParticipantShareType[];
+}
+
+export interface ExpenseBalanceType {
+  user_id: number;
+  balance_minor: number;
+}
+
+export interface ExpenseSettlementType {
+  from_user_id: number;
+  to_user_id: number;
+  amount_minor: number;
+}
+
+export interface ExpenseOverviewType {
+  chat_id: number;
+  currency: string;
+  total_expenses_minor: number;
+  balances: ExpenseBalanceType[];
+  settlements: ExpenseSettlementType[];
+  open_expense_count: number;
+}
+
+export interface ExpensePaymentType {
+  id: string;
+  chat_id: number;
+  from_user_id: number;
+  to_user_id: number;
+  amount_minor: number;
+  created_by_user_id: number;
+  created_at: number;
 }

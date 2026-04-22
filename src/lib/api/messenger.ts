@@ -13,8 +13,13 @@ import type {
   ChatMessageApiType,
   ContactType,
   CreateGroupPayload,
+  ExpenseCreatePayloadType,
+  ExpenseOverviewType,
+  ExpensePaymentType,
+  ExpenseType,
   LinkPreviewResponse,
   WatchRoomInviteType,
+  WatchRoomChatMessageType,
   WatchRoomType,
 } from "@/lib/types";
 
@@ -43,6 +48,10 @@ export default class MessengerApi {
 
   static getChatMessages(chatId: number) {
     return axios.get<ChatMessageApiType[]>(`/api/chats/${chatId}/messages`);
+  }
+
+  static getChatParticipants(chatId: number) {
+    return axios.get<ContactType[]>(`/api/chats/${chatId}/participants`);
   }
 
   static sendMessage(
@@ -110,6 +119,12 @@ export default class MessengerApi {
     return axios.get<WatchRoomType>(`/api/watch-rooms/room/${roomId}`);
   }
 
+  static getWatchRoomMessages(roomId: string, limit: number = 100) {
+    return axios.get<WatchRoomChatMessageType[]>(`/api/watch-rooms/${roomId}/messages`, {
+      params: { limit },
+    });
+  }
+
   static joinWatchRoom(roomId: string) {
     return axios.post<WatchRoomType>(`/api/watch-rooms/${roomId}/join`);
   }
@@ -158,5 +173,32 @@ export default class MessengerApi {
 
   static replaceChatGroups(groups: ChatFolderReplaceItemType[]) {
     return axios.put<ChatFolderType[]>("/api/chat-groups", { groups });
+  }
+
+  static createExpense(chatId: number, payload: ExpenseCreatePayloadType) {
+    return axios.post<ExpenseType>(`/api/chats/${chatId}/expenses`, payload);
+  }
+
+  static getChatExpenses(chatId: number) {
+    return axios.get<ExpenseType[]>(`/api/chats/${chatId}/expenses`);
+  }
+
+  static getChatExpenseOverview(chatId: number) {
+    return axios.get<ExpenseOverviewType>(`/api/chats/${chatId}/expenses/overview`);
+  }
+
+  static getChatExpensePayments(chatId: number) {
+    return axios.get<ExpensePaymentType[]>(`/api/chats/${chatId}/expenses/payments`);
+  }
+
+  static markExpenseSettlementPaid(
+    chatId: number,
+    payload: {
+      from_user_id: number;
+      to_user_id: number;
+      amount_minor: number;
+    },
+  ) {
+    return axios.post<ExpenseOverviewType>(`/api/chats/${chatId}/expenses/settlements/mark-paid`, payload);
   }
 }

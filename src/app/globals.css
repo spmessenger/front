@@ -173,6 +173,98 @@ a {
   background: rgba(255, 255, 255, 0.1) !important;
 }
 
+.watch-room-sync-dropdown-mono .ant-dropdown-menu {
+  background: #111111 !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+.watch-room-sync-dropdown-mono .ant-dropdown-menu-item,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu-item .ant-dropdown-menu-title-content,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu-item .anticon {
+  color: #ffffff !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.watch-room-sync-dropdown-mono .ant-dropdown-menu-item:hover,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu-item-active {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.auth-mono-page {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #0b0b0b;
+}
+
+.auth-mono-text {
+  font-family: var(--font-geist-mono), monospace !important;
+  color: #ffffff !important;
+}
+
+.auth-mono-page .auth-mono-card .ant-card-head {
+  background: #111315 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.auth-mono-page .auth-mono-card .ant-card-body,
+.auth-mono-page .auth-mono-card .ant-card-head {
+  color: #ffffff !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.auth-mono-page .auth-mono-card {
+  background: #101113 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-form-item-label > label,
+.auth-mono-page .auth-mono-form .ant-typography,
+.auth-mono-page .auth-mono-form .ant-alert-message,
+.auth-mono-page .auth-mono-form .ant-alert-description,
+.auth-mono-page .auth-mono-form .ant-btn,
+.auth-mono-page .auth-mono-form .ant-input,
+.auth-mono-page .auth-mono-form .ant-input-password,
+.auth-mono-page .auth-mono-form .ant-input::placeholder,
+.auth-mono-page .auth-mono-form .ant-input-password input::placeholder {
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-form-item-label > label,
+.auth-mono-page .auth-mono-form .ant-btn-link,
+.auth-mono-page .auth-mono-form .ant-input,
+.auth-mono-page .auth-mono-form .ant-input-password input {
+  color: #ffffff !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-input,
+.auth-mono-page .auth-mono-form .ant-input-affix-wrapper {
+  background: #111315 !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-input::placeholder,
+.auth-mono-page .auth-mono-form .ant-input-password input::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-btn-primary {
+  background: #f6e6d0 !important;
+  border-color: #f6e6d0 !important;
+  color: #111315 !important;
+}
+
+.auth-mono-page .auth-mono-form .ant-btn-primary:hover {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #111315 !important;
+}
+
 .ant-btn,
 .ant-input,
 .ant-input-affix-wrapper,
@@ -387,6 +479,28 @@ a {
   color: #ffffff !important;
 }
 
+.watch-room-viewer-avatars-inline {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.watch-room-inline-avatar {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.watch-room-inline-avatar-self {
+  border-color: rgba(126, 217, 87, 0.8);
+}
+
+.watch-room-inline-avatar-overflow {
+  margin-left: 6px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--mess-muted-text);
+}
+
 .watch-room-viewers-panel {
   border-radius: 10px;
   padding: 10px;
@@ -409,9 +523,133 @@ a {
   -webkit-user-select: none;
 }
 
-.watch-room-host-crown {
-  color: #f5c542;
-  font-size: 14px;
+.watch-room-chat-panel {
+  border-radius: 10px;
+  padding: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.7);
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.watch-room-chat-panel-mono {
+  background: #111315;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.watch-room-chat-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.watch-room-chat-message {
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.watch-room-chat-message-own {
+  border-color: rgba(94, 181, 120, 0.45);
+}
+
+.watch-room-chat-message-mono {
+  background: #0a0d11;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.watch-room-chat-message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
+
+.watch-room-chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.watch-room-emoji-btn {
+  min-width: 36px !important;
+  width: 36px !important;
+  padding: 0 !important;
+}
+
+.watch-room-reaction-popover-mono .ant-popover-inner {
+  background: #111315 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.watch-room-reaction-picker-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.watch-room-reaction-picker-item {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #0a0d11;
+  color: #ffffff;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.watch-room-reaction-picker-item:hover {
+  background: #1a1d21;
+}
+
+.watch-room-reaction-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.watch-room-reaction-bubble {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
+  animation: watch-room-reaction-float 1.7s ease-out forwards;
+}
+
+@keyframes watch-room-reaction-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150px) scale(1.15);
+  }
 }
 
 .watch-room-invite-list {
@@ -472,6 +710,7 @@ a {
   color: #f2f2f2;
   font-size: 13px;
   backdrop-filter: blur(2px);
+  pointer-events: none;
 }
 
 .youtube-player-loading-overlay-mono {
