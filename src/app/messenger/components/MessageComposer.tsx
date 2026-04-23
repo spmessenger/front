@@ -1,21 +1,30 @@
 "use client";
 
 import React from "react";
-import { Button, Dropdown, Image, Input, Modal as AntdModal, Typography, message } from "antd";
+import {
+  Button,
+  Dropdown,
+  Image,
+  Input,
+  Modal as AntdModal,
+  Typography,
+  message,
+} from "antd";
 import type { MenuProps } from "antd";
 import {
-  AudioOutlined,
   CloseOutlined,
   FileImageOutlined,
   FileTextOutlined,
+  LockFilled,
   PaperClipOutlined,
+  SendOutlined,
   SmileOutlined,
-  StopOutlined,
 } from "@ant-design/icons";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import type { ChatMessageType } from "@/lib/types";
 import type { AttachmentPickerKind, MessengerTheme } from "../types";
 import { resolveMessageAuthor, shortenText } from "../utils";
+import VoiceRecordButton from "./VoiceRecordButton";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -50,18 +59,23 @@ export default function MessageComposer({
   const [pendingMediaFiles, setPendingMediaFiles] = React.useState<
     Array<{ id: string; file: File; previewUrl: string }>
   >([]);
-  const pendingMediaFilesRef = React.useRef<Array<{ id: string; file: File; previewUrl: string }>>([]);
+  const pendingMediaFilesRef = React.useRef<
+    Array<{ id: string; file: File; previewUrl: string }>
+  >([]);
   const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
   const voiceRecorderRef = React.useRef<MediaRecorder | null>(null);
   const voiceStreamRef = React.useRef<MediaStream | null>(null);
   const voiceChunksRef = React.useRef<BlobPart[]>([]);
-  const voiceTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const voiceRecordingStartedAtRef = React.useRef<number>(0);
   const shouldDiscardRecordedVoiceRef = React.useRef(false);
   const isVoiceHoldActiveRef = React.useRef(false);
-  const isVoiceKeyboardHoldActiveRef = React.useRef(false);
   const [isVoiceRecording, setIsVoiceRecording] = React.useState(false);
+  const [isVoiceRecordingLocked, setIsVoiceRecordingLocked] =
+    React.useState(false);
   const [voiceRecordingSeconds, setVoiceRecordingSeconds] = React.useState(0);
 
   function appendEmoji(emojiData: EmojiClickData) {
@@ -108,7 +122,8 @@ export default function MessageComposer({
 
   function addMediaFiles(files: File[]) {
     const nextFiles = files.filter(
-      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+      (file) =>
+        file.type.startsWith("image/") || file.type.startsWith("video/"),
     );
     if (nextFiles.length === 0) {
       return;
@@ -201,6 +216,11 @@ export default function MessageComposer({
       return;
     }
     if (recorder.state !== "inactive") {
+      try {
+        recorder.requestData();
+      } catch {
+        // ignore requestData errors for unsupported recorder states
+      }
       recorder.stop();
     }
   }, []);
@@ -208,9 +228,9 @@ export default function MessageComposer({
   const cancelVoiceRecording = React.useCallback(() => {
     shouldDiscardRecordedVoiceRef.current = true;
     isVoiceHoldActiveRef.current = false;
-    isVoiceKeyboardHoldActiveRef.current = false;
     clearVoiceTimer();
     setIsVoiceRecording(false);
+    setIsVoiceRecordingLocked(false);
     setVoiceRecordingSeconds(0);
     stopVoiceRecording();
   }, [clearVoiceTimer, stopVoiceRecording]);
@@ -219,7 +239,10 @@ export default function MessageComposer({
     if (!isSocketConnected || isAttachmentUploading) {
       return;
     }
-    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    if (
+      typeof window === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
       message.error("Voice recording is not supported in this browser.");
       return;
     }
@@ -234,13 +257,18 @@ export default function MessageComposer({
       voiceChunksRef.current = [];
 
       const preferredMimeTypes = [
-        "audio/webm;codecs=opus",
-        "audio/webm",
         "audio/ogg;codecs=opus",
+        "audio/webm;codecs=opus",
+        "audio/ogg",
+        "audio/webm",
         "audio/mp4",
       ];
-      const mimeType = preferredMimeTypes.find((value) => MediaRecorder.isTypeSupported(value));
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const mimeType = preferredMimeTypes.find((value) =>
+        MediaRecorder.isTypeSupported(value),
+      );
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       voiceRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event: BlobEvent) => {
@@ -250,9 +278,9 @@ export default function MessageComposer({
       };
       recorder.onstop = async () => {
         isVoiceHoldActiveRef.current = false;
-        isVoiceKeyboardHoldActiveRef.current = false;
         clearVoiceTimer();
         setIsVoiceRecording(false);
+        setIsVoiceRecordingLocked(false);
         const recordedSeconds = Math.max(
           0,
           Math.round((Date.now() - voiceRecordingStartedAtRef.current) / 1000),
@@ -286,12 +314,15 @@ export default function MessageComposer({
             : blobType.includes("wav")
               ? "wav"
               : "webm";
-        const file = new File([blob], `voice-${Date.now()}.${extension}`, { type: blob.type || blobType });
+        const file = new File([blob], `voice-${Date.now()}.${extension}`, {
+          type: blob.type || blobType,
+        });
         await onSendAttachment(file, "voice");
       };
       recorder.onerror = () => {
         clearVoiceTimer();
         setIsVoiceRecording(false);
+        setIsVoiceRecordingLocked(false);
         setVoiceRecordingSeconds(0);
         stopVoiceTracks();
         message.error("Failed to record voice message.");
@@ -308,22 +339,34 @@ export default function MessageComposer({
       }, 1000);
     } catch {
       isVoiceHoldActiveRef.current = false;
-      isVoiceKeyboardHoldActiveRef.current = false;
       stopVoiceTracks();
       clearVoiceTimer();
       setIsVoiceRecording(false);
+      setIsVoiceRecordingLocked(false);
       setVoiceRecordingSeconds(0);
       message.error("Microphone access denied.");
     }
-  }, [clearVoiceTimer, isAttachmentUploading, isSocketConnected, onSendAttachment, stopVoiceTracks]);
+  }, [
+    clearVoiceTimer,
+    isAttachmentUploading,
+    isSocketConnected,
+    onSendAttachment,
+    stopVoiceTracks,
+  ]);
 
   const beginVoiceHoldRecording = React.useCallback(() => {
     if (isVoiceRecording || isAttachmentUploading || !isSocketConnected) {
       return;
     }
+    setIsVoiceRecordingLocked(false);
     isVoiceHoldActiveRef.current = true;
     void startVoiceRecording();
-  }, [isAttachmentUploading, isSocketConnected, isVoiceRecording, startVoiceRecording]);
+  }, [
+    isAttachmentUploading,
+    isSocketConnected,
+    isVoiceRecording,
+    startVoiceRecording,
+  ]);
 
   const endVoiceHoldRecording = React.useCallback(() => {
     isVoiceHoldActiveRef.current = false;
@@ -333,9 +376,37 @@ export default function MessageComposer({
     stopVoiceRecording();
   }, [isVoiceRecording, stopVoiceRecording]);
 
+  const lockVoiceRecording = React.useCallback(() => {
+    if (!isVoiceRecording) {
+      return;
+    }
+    isVoiceHoldActiveRef.current = false;
+    setIsVoiceRecordingLocked(true);
+  }, [isVoiceRecording]);
+
+  React.useEffect(() => {
+    const handleGlobalVoiceRelease = () => {
+      if (isVoiceHoldActiveRef.current) {
+        endVoiceHoldRecording();
+      }
+    };
+
+    window.addEventListener("mouseup", handleGlobalVoiceRelease);
+    window.addEventListener("touchend", handleGlobalVoiceRelease);
+    window.addEventListener("touchcancel", handleGlobalVoiceRelease);
+
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalVoiceRelease);
+      window.removeEventListener("touchend", handleGlobalVoiceRelease);
+      window.removeEventListener("touchcancel", handleGlobalVoiceRelease);
+    };
+  }, [endVoiceHoldRecording]);
+
   React.useEffect(() => {
     return () => {
-      pendingMediaFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      pendingMediaFilesRef.current.forEach((item) =>
+        URL.revokeObjectURL(item.previewUrl),
+      );
       clearVoiceTimer();
       stopVoiceRecording();
       stopVoiceTracks();
@@ -374,7 +445,13 @@ export default function MessageComposer({
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <Text style={{ display: "block", color: "var(--mess-reply-title)", fontWeight: 600 }}>
+              <Text
+                style={{
+                  display: "block",
+                  color: "var(--mess-reply-title)",
+                  fontWeight: 600,
+                }}
+              >
                 {`In reply to ${resolveMessageAuthor(replyTarget, selectedChatTitle)}`}
               </Text>
               <Text style={{ color: "var(--mess-text)" }}>
@@ -399,10 +476,15 @@ export default function MessageComposer({
         }}
       >
         <Dropdown
-          trigger={["hover", "click"]}
+          trigger={["hover"]}
           placement="topLeft"
-          overlayClassName={messengerTheme === "mono" ? "messenger-mono-attach-menu" : undefined}
-          menu={{ items: attachmentMenuItems, onClick: handleAttachmentMenuClick }}
+          overlayClassName={
+            messengerTheme === "mono" ? "messenger-mono-attach-menu" : undefined
+          }
+          menu={{
+            items: attachmentMenuItems,
+            onClick: handleAttachmentMenuClick,
+          }}
           disabled={!isSocketConnected || isAttachmentUploading}
         >
           <Button
@@ -444,89 +526,54 @@ export default function MessageComposer({
           placeholder="Type a message"
           autoSize={{ minRows: 1, maxRows: 4 }}
           style={{ minWidth: 0 }}
-          disabled={!isSocketConnected}
+          disabled={!isSocketConnected || !isVoiceRecording}
         />
         {isVoiceRecording ? (
-          <Text
+          <div
             style={{
-              color: "var(--mess-muted-text)",
-              minWidth: "70px",
-              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              minWidth: "86px",
             }}
           >
-            {`REC ${Math.floor(voiceRecordingSeconds / 60)
-              .toString()
-              .padStart(2, "0")}:${(voiceRecordingSeconds % 60).toString().padStart(2, "0")}`}
-          </Text>
+            <Text
+              style={{
+                color: "var(--mess-muted-text)",
+                textAlign: "center",
+              }}
+            >
+              {`REC ${Math.floor(voiceRecordingSeconds / 60)
+                .toString()
+                .padStart(
+                  2,
+                  "0",
+                )}:${(voiceRecordingSeconds % 60).toString().padStart(2, "0")}`}
+            </Text>
+            {isVoiceRecordingLocked ? (
+              <Text
+                style={{
+                  color: "var(--mess-accent)",
+                  fontSize: "11px",
+                  lineHeight: 1,
+                }}
+              >
+                <LockFilled style={{ marginRight: "4px" }} />
+                Locked
+              </Text>
+            ) : (
+              <Text
+                style={{
+                  color: "var(--mess-muted-text)",
+                  fontSize: "11px",
+                  lineHeight: 1,
+                }}
+              >
+                Swipe up to lock • left to cancel
+              </Text>
+            )}
+          </div>
         ) : null}
-        {isVoiceRecording ? (
-          <Button
-            size="large"
-            icon={<CloseOutlined />}
-            aria-label="Cancel recording"
-            title="Cancel recording"
-            onClick={cancelVoiceRecording}
-            disabled={!isSocketConnected || isAttachmentUploading}
-          />
-        ) : null}
-        <Button
-          size="large"
-          icon={isVoiceRecording ? <StopOutlined /> : <AudioOutlined />}
-          aria-label={isVoiceRecording ? "Recording voice message" : "Hold to record voice message"}
-          title={isVoiceRecording ? "Release to send" : "Hold to record"}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            beginVoiceHoldRecording();
-          }}
-          onMouseUp={(event) => {
-            event.preventDefault();
-            endVoiceHoldRecording();
-          }}
-          onMouseLeave={() => {
-            if (isVoiceHoldActiveRef.current) {
-              endVoiceHoldRecording();
-            }
-          }}
-          onTouchStart={(event) => {
-            event.preventDefault();
-            beginVoiceHoldRecording();
-          }}
-          onTouchEnd={(event) => {
-            event.preventDefault();
-            endVoiceHoldRecording();
-          }}
-          onTouchCancel={(event) => {
-            event.preventDefault();
-            endVoiceHoldRecording();
-          }}
-          onKeyDown={(event) => {
-            if (event.repeat || (event.key !== " " && event.key !== "Enter")) {
-              return;
-            }
-            event.preventDefault();
-            if (isVoiceKeyboardHoldActiveRef.current) {
-              return;
-            }
-            isVoiceKeyboardHoldActiveRef.current = true;
-            beginVoiceHoldRecording();
-          }}
-          onKeyUp={(event) => {
-            if (event.key !== " " && event.key !== "Enter") {
-              return;
-            }
-            event.preventDefault();
-            if (!isVoiceKeyboardHoldActiveRef.current) {
-              return;
-            }
-            isVoiceKeyboardHoldActiveRef.current = false;
-            endVoiceHoldRecording();
-          }}
-          onClick={(event) => {
-            event.preventDefault();
-          }}
-          disabled={!isSocketConnected || isAttachmentUploading}
-          danger={isVoiceRecording}
-        />
         <Button
           size="large"
           icon={<SmileOutlined />}
@@ -535,13 +582,25 @@ export default function MessageComposer({
           onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
           disabled={!isSocketConnected || isAttachmentUploading}
         />
-        <Button
-          type="primary"
-          onClick={handleSendClick}
-          disabled={!draft.trim() || !isSocketConnected}
-        >
-          Send
-        </Button>
+        {draft ? (
+          <Button
+            type="primary"
+            size="large"
+            onClick={handleSendClick}
+            disabled={!draft.trim() || !isSocketConnected}
+            icon={<SendOutlined />}
+          />
+        ) : (
+        <VoiceRecordButton
+          isVoiceRecording={isVoiceRecording}
+          isVoiceRecordingLocked={isVoiceRecordingLocked}
+          disabled={!isSocketConnected || isAttachmentUploading}
+          onBeginHold={beginVoiceHoldRecording}
+          onEndHold={endVoiceHoldRecording}
+          onLockRecording={lockVoiceRecording}
+          onCancelRecording={cancelVoiceRecording}
+        />
+        )}
       </div>
       {isEmojiPickerOpen ? (
         <div style={{ width: "100%" }}>
@@ -615,7 +674,12 @@ export default function MessageComposer({
                 {item.file.type.startsWith("video/") ? (
                   <video
                     src={item.previewUrl}
-                    style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
+                    style={{
+                      width: "100%",
+                      height: "120px",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
                     muted
                   />
                 ) : (
@@ -623,7 +687,12 @@ export default function MessageComposer({
                     src={item.previewUrl}
                     alt={item.file.name}
                     preview={false}
-                    style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
+                    style={{
+                      width: "100%",
+                      height: "120px",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
                   />
                 )}
                 <Button

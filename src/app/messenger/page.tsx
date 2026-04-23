@@ -16,7 +16,6 @@ import {
   HomeFilled,
   InboxOutlined,
   LoadingOutlined,
-  RedoOutlined,
   YoutubeFilled,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
@@ -32,6 +31,14 @@ import GroupSettingsModalContent from "./components/GroupSettingsModalContent";
 import YouTubeWatchRoomModals from "./components/YouTubeWatchRoomModals";
 import ExpenseSplitModal from "./components/ExpenseSplitModal";
 import ChatExpensesPanel from "./components/ChatExpensesPanel";
+import MessageAttachmentContent from "./components/MessageAttachmentContent";
+import ReplyReferenceBlock from "./components/messages/ReplyReferenceBlock";
+import ForwardedMessageBlock from "./components/messages/ForwardedMessageBlock";
+import MessageTextBlock from "./components/messages/MessageTextBlock";
+import MessageLinkPreviewBlock from "./components/messages/MessageLinkPreviewBlock";
+import MessageMetaRow from "./components/messages/MessageMetaRow";
+import { useLinkPreviews } from "./hooks/useLinkPreviews";
+import { useVoicePlayback } from "./hooks/useVoicePlayback";
 import {
   ALL_CHATS_GROUP_ID,
   ALL_CHATS_GROUP_TITLE,
@@ -58,10 +65,10 @@ import {
   mapApiMessage,
   parseChatGroupsCache,
   parseChatsCache,
-  renderTextWithClickableUrls,
   resolveAttachmentPickerKind,
   resolveContentTypeForFile,
   resolveMessageAuthor,
+  readAudioDurationSeconds,
   shortenText,
   sortChatsByRules,
   uploadFileWithProgress,
@@ -169,17 +176,6 @@ export default function Messenger() {
   const [expensesPanelWidth, setExpensesPanelWidth] = React.useState(360);
   const [chatExpenses, setChatExpenses] = React.useState<ExpenseType[]>([]);
   const [expensePayments, setExpensePayments] = React.useState<ExpensePaymentType[]>([]);
-  const [linkPreviewByUrl, setLinkPreviewByUrl] = React.useState<
-    Record<string, {
-      url: string;
-      title?: string;
-      description?: string;
-      imageUrl?: string;
-      siteName?: string;
-      youtubeVideoId?: string;
-    }>
-  >({});
-  const requestedYouTubePreviewUrlsRef = React.useRef<Set<string>>(new Set());
   const unavailableWatchRoomKeysRef = React.useRef<Set<string>>(new Set());
   const syncEnsureTimeoutsRef = React.useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const syncedToUserIdRef = React.useRef<number | null>(null);
@@ -439,33 +435,15 @@ export default function Messenger() {
   const closeModal = React.useCallback(() => {
     setModal({ clear: true });
   }, [setModal]);
-
-  React.useEffect(() => {
-    const messageUrls = selectedMessages.flatMap((message) => extractUrls(message.text));
-
-    messageUrls.forEach((url) => {
-      if (requestedYouTubePreviewUrlsRef.current.has(url)) {
-        return;
-      }
-      requestedYouTubePreviewUrlsRef.current.add(url);
-
-      void MessengerApi.getLinkPreview(url)
-        .then(({ data }) => {
-          setLinkPreviewByUrl((current) => ({
-            ...current,
-            [url]: {
-              url: data.url,
-              title: data.title ?? undefined,
-              description: data.description ?? undefined,
-              imageUrl: data.image_url ?? undefined,
-              siteName: data.site_name ?? undefined,
-              youtubeVideoId: data.youtube_video_id ?? undefined,
-            },
-          }));
-        })
-        .catch(() => undefined);
-    });
-  }, [selectedMessages]);
+  const { linkPreviewByUrl } = useLinkPreviews(selectedMessages);
+  const {
+    activeVoiceMessageId,
+    voicePlaybackByMessageId,
+    formatVoiceTime,
+    toggleVoiceMessagePlayback,
+    registerVoiceAudioElement,
+    getVoiceAudioHandlers,
+  } = useVoicePlayback(selectedChatId);
 
   React.useEffect(() => {
     void AuthApi.getProfile()
@@ -1543,6 +1521,9 @@ export default function Messenger() {
     }
 
     const contentType = resolveContentTypeForFile(file, kind);
+    const optimisticVoiceDurationSeconds = contentType === "voice"
+      ? await readAudioDurationSeconds(file)
+      : null;
     const optimisticMessageId = existingMessageId ?? -Date.now();
     const localPreviewUrl =
       contentType === "image" || contentType === "video" || contentType === "voice"
@@ -1563,6 +1544,7 @@ export default function Messenger() {
           original_name: file.name,
           mime_type: file.type || "application/octet-stream",
           size_bytes: file.size,
+          duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
           url: localPreviewUrl,
           status: "pending",
           upload_progress: 0,
@@ -1603,6 +1585,7 @@ export default function Messenger() {
                         original_name: file.name,
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
+                        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl ?? message.attachment.url,
                         status: "pending",
                         upload_progress: 0,
@@ -1612,6 +1595,7 @@ export default function Messenger() {
                         original_name: file.name,
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
+                        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl,
                         status: "pending",
                         upload_progress: 0,
@@ -1669,7 +1653,9 @@ export default function Messenger() {
         },
       );
 
-      await MessengerApi.completeAttachment(selectedChatId, initData.attachment_id, {});
+      await MessengerApi.completeAttachment(selectedChatId, initData.attachment_id, {
+        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
+      });
 
       const { data: sentMessage } = await MessengerApi.sendMessage(selectedChatId, caption ?? "", {
         contentType,
@@ -2888,429 +2874,61 @@ export default function Messenger() {
                           }}
                         >
                           {hasReference ? (
-                            <div
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (chatMessage.reference_message_id) {
-                                  handleScrollToMessage(chatMessage.reference_message_id);
-                                }
-                              }}
-                              style={{
-                                borderLeft: "3px solid var(--mess-reply-title)",
-                                background: "var(--mess-soft-card-bg)",
-                                borderRadius: "8px",
-                                padding: "6px 10px",
-                                marginBottom: "8px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  display: "block",
-                                  color: "var(--mess-accent)",
-                                  fontSize: "12px",
-                                  fontWeight: 600,
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                {referenceAuthor}
-                              </Text>
-                              <Text style={{ color: "var(--mess-muted-text)", fontSize: "13px" }}>
-                                {referenceContent}
-                              </Text>
-                            </div>
+                            <ReplyReferenceBlock
+                              referenceAuthor={referenceAuthor}
+                              referenceContent={referenceContent}
+                              referenceMessageId={chatMessage.reference_message_id}
+                              onScrollToMessage={handleScrollToMessage}
+                            />
                           ) : null}
                           {hasForwarded ? (
-                            <div
-                              style={{
-                                borderRadius: "10px",
-                                background: "var(--mess-soft-card-bg)",
-                                padding: "8px 10px",
-                                marginBottom: "8px",
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  display: "block",
-                                  color: "var(--mess-accent)",
-                                  fontWeight: 600,
-                                  fontSize: "13px",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                {forwarderName}
-                              </Text>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "6px",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                <Text style={{ color: "var(--mess-muted-text)", fontSize: "12px" }}>
-                                  Forwarded from
-                                </Text>
-                                <Avatar
-                                  size={18}
-                                  src={chatMessage.forwarded_from_author_avatar_url}
-                                  style={{ flexShrink: 0 }}
-                                >
-                                  {forwardedSourceAuthor.slice(0, 1).toUpperCase()}
-                                </Avatar>
-                                <Text style={{ color: "var(--mess-text)", fontSize: "12px" }}>
-                                  {forwardedSourceAuthor}
-                                </Text>
-                              </div>
-                              <Text style={{ color: "var(--mess-text)", whiteSpace: "pre-wrap" }}>
-                                {forwardedSourceContent}
-                              </Text>
-                            </div>
+                            <ForwardedMessageBlock
+                              forwarderName={forwarderName}
+                              forwardedSourceAuthor={forwardedSourceAuthor}
+                              forwardedSourceContent={forwardedSourceContent}
+                              forwardedSourceAuthorAvatarUrl={chatMessage.forwarded_from_author_avatar_url}
+                            />
                           ) : null}
-                          {chatMessage.attachment ? (
-                            <div style={{ marginBottom: chatMessage.text.trim() ? "8px" : "0" }}>
-                              {hasMediaGroup ? (
-                                <div
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns:
-                                      mediaGroupMessages.length === 2
-                                        ? "repeat(2, minmax(0, 1fr))"
-                                        : "repeat(3, minmax(0, 1fr))",
-                                    gap: "4px",
-                                    width: "min(420px, 100%)",
-                                  }}
-                                >
-                                  {mediaGroupMessages.map((mediaMessage) => (
-                                    <div
-                                      key={mediaMessage.id}
-                                      style={{
-                                        position: "relative",
-                                        borderRadius: "8px",
-                                        overflow: "hidden",
-                                        background: "rgba(0,0,0,0.08)",
-                                      }}
-                                    >
-                                      {mediaMessage.content_type === "image" && mediaMessage.attachment?.url ? (
-                                        <Image
-                                          src={mediaMessage.attachment.url}
-                                          alt={mediaMessage.attachment.original_name}
-                                          width={132}
-                                          style={{
-                                            display: "block",
-                                            width: "100%",
-                                            aspectRatio: "1 / 1",
-                                            objectFit: "cover",
-                                          }}
-                                          preview={mediaMessage.attachment.status !== "pending"}
-                                        />
-                                      ) : mediaMessage.content_type === "video" && mediaMessage.attachment?.url ? (
-                                        <video
-                                          src={mediaMessage.attachment.url}
-                                          onClick={() => {
-                                            void handleOpenAttachment(mediaMessage);
-                                          }}
-                                          style={{
-                                            display: "block",
-                                            width: "100%",
-                                            aspectRatio: "1 / 1",
-                                            objectFit: "cover",
-                                            cursor: "pointer",
-                                          }}
-                                        />
-                                      ) : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : chatMessage.content_type === "image" && chatMessage.attachment.url ? (
-                                <Image
-                                  src={chatMessage.attachment.url}
-                                  alt={chatMessage.attachment.original_name}
-                                  width={320}
-                                  style={{
-                                    display: "block",
-                                    width: "min(320px, 100%)",
-                                    maxHeight: "360px",
-                                    objectFit: "cover",
-                                    borderRadius: "10px",
-                                  }}
-                                  preview={chatMessage.attachment.status !== "pending"}
-                                />
-                              ) : chatMessage.content_type === "video" && chatMessage.attachment.url ? (
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    borderRadius: "10px",
-                                    overflow: "hidden",
-                                    background: "#000000",
-                                  }}
-                                >
-                                  <video
-                                    src={chatMessage.attachment.url}
-                                    controls
-                                    style={{
-                                      display: "block",
-                                      width: "100%",
-                                      height: "auto",
-                                      maxHeight: "360px",
-                                      objectFit: "contain",
-                                      background: "#000000",
-                                    }}
-                                  />
-                                </div>
-                              ) : chatMessage.content_type === "voice" && chatMessage.attachment.url ? (
-                                <div className="voice-message-bubble">
-                                  <audio
-                                    src={chatMessage.attachment.url}
-                                    controls
-                                    preload="metadata"
-                                    style={{ display: "block", width: "100%" }}
-                                  />
-                                  <Button
-                                    size="small"
-                                    onClick={() => {
-                                      void handleOpenAttachment(chatMessage);
-                                    }}
-                                    disabled={chatMessage.attachment.status === "pending"}
-                                  >
-                                    Open
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                                  <Button
-                                    size="small"
-                                    onClick={() => {
-                                      void handleOpenAttachment(chatMessage);
-                                    }}
-                                    disabled={chatMessage.attachment.status === "pending"}
-                                  >
-                                    {chatMessage.attachment.original_name}
-                                  </Button>
-                                  {chatMessage.attachment.status === "pending" ? (
-                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                      <Progress
-                                        type="circle"
-                                        percent={chatMessage.attachment.upload_progress ?? 0}
-                                        size={22}
-                                        showInfo={false}
-                                        strokeWidth={14}
-                                      />
-                                      <Text style={{ color: "var(--mess-muted-text)", fontSize: "12px" }}>
-                                        {`Uploading ${chatMessage.attachment.upload_progress ?? 0}%`}
-                                      </Text>
-                                    </div>
-                                  ) : null}
-                                  {chatMessage.attachment.status === "failed" ? (
-                                    <Button
-                                      size="small"
-                                      icon={<RedoOutlined />}
-                                      onClick={() => {
-                                        void handleRetryAttachment(chatMessage.id);
-                                      }}
-                                    >
-                                      Retry
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              )}
-                              {!hasMediaGroup &&
-                              chatMessage.attachment.status === "pending" &&
-                              (chatMessage.content_type === "image" ||
-                                chatMessage.content_type === "video" ||
-                                chatMessage.content_type === "voice") ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                    marginTop: "6px",
-                                  }}
-                                >
-                                  <Progress
-                                    type="circle"
-                                    percent={chatMessage.attachment.upload_progress ?? 0}
-                                    size={22}
-                                    showInfo={false}
-                                    strokeWidth={14}
-                                  />
-                                  <Text
-                                    style={{
-                                      color: "var(--mess-muted-text)",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    {`Uploading ${chatMessage.attachment.upload_progress ?? 0}%`}
-                                  </Text>
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          {chatMessage.text.trim() ? (
-                            <div
-                              style={{
-                                whiteSpace: "pre-wrap",
-                                fontFamily:
-                                  messengerTheme === "mono"
-                                    ? "var(--font-geist-mono), monospace"
-                                    : "var(--font-pixel), monospace",
-                              }}
-                            >
-                              {renderTextWithClickableUrls(chatMessage.text)}
-                            </div>
-                          ) : null}
+                          <MessageAttachmentContent
+                            chatMessage={chatMessage}
+                            hasMediaGroup={hasMediaGroup}
+                            mediaGroupMessages={mediaGroupMessages}
+                            activeVoiceMessageId={activeVoiceMessageId}
+                            voicePlaybackByMessageId={voicePlaybackByMessageId}
+                            formatVoiceTime={formatVoiceTime}
+                            toggleVoiceMessagePlayback={toggleVoiceMessagePlayback}
+                            registerVoiceAudioElement={registerVoiceAudioElement}
+                            getVoiceAudioHandlers={getVoiceAudioHandlers}
+                            handleOpenAttachment={handleOpenAttachment}
+                            handleRetryAttachment={handleRetryAttachment}
+                          />
+                          <MessageTextBlock
+                            text={chatMessage.text}
+                            messengerTheme={messengerTheme}
+                          />
                           {primaryMessageUrl ? (
-                            <div
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                window.open(primaryPreviewUrl, "_blank", "noopener,noreferrer");
-                              }}
-                              style={{
-                                marginTop: "8px",
-                                borderRadius: "10px",
-                                border: "1px solid var(--mess-soft-border)",
-                                background: "var(--mess-soft-card-bg)",
-                                overflow: "hidden",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <div style={{ padding: "8px 10px" }}>
-                                <Text
-                                  style={{
-                                    display: "block",
-                                    color: "var(--mess-accent)",
-                                    fontSize: "12px",
-                                    marginBottom: "2px",
-                                  }}
-                                >
-                                  {primaryYouTubeVideoId ? "YouTube" : (primaryLinkPreview?.siteName || primaryMessageUrlHost)}
-                                </Text>
-                                <Text
-                                  style={{
-                                    display: "block",
-                                    color: "var(--mess-text)",
-                                    fontWeight: 600,
-                                    lineHeight: 1.3,
-                                  }}
-                                >
-                                  {primaryLinkPreview?.title || primaryMessageUrl}
-                                </Text>
-                                {primaryLinkPreview?.description ? (
-                                  <Text
-                                    style={{
-                                      color: "var(--mess-muted-text)",
-                                      fontSize: "12px",
-                                      display: "block",
-                                      marginTop: "2px",
-                                    }}
-                                  >
-                                    {shortenText(primaryLinkPreview.description, 180)}
-                                  </Text>
-                                ) : null}
-                              </div>
-                              {primaryLinkPreview?.imageUrl || primaryYouTubeVideoId ? (
-                                <div style={{ position: "relative" }}>
-                                  <Image
-                                    src={primaryLinkPreview?.imageUrl || `https://i.ytimg.com/vi/${primaryYouTubeVideoId}/hqdefault.jpg`}
-                                    alt={primaryLinkPreview?.title || "Link preview"}
-                                    preview={false}
-                                    style={{
-                                      display: "block",
-                                      width: "100%",
-                                      maxWidth: "420px",
-                                      aspectRatio: primaryYouTubeVideoId ? "16 / 9" : "1.91 / 1",
-                                      objectFit: "cover",
-                                    }}
-                                  />
-                                  {primaryYouTubeVideoId ? (
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        inset: 0,
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        pointerEvents: "none",
-                                      }}
-                                    >
-                                      <YoutubeFilled
-                                        style={{
-                                          color: "#ff4d4f",
-                                          fontSize: "40px",
-                                          filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.5))",
-                                        }}
-                                      />
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
+                            <MessageLinkPreviewBlock
+                              messageUrl={primaryMessageUrl}
+                              previewUrl={primaryPreviewUrl}
+                              messageUrlHost={primaryMessageUrlHost}
+                              title={primaryLinkPreview?.title}
+                              description={primaryLinkPreview?.description}
+                              imageUrl={primaryLinkPreview?.imageUrl}
+                              siteName={primaryLinkPreview?.siteName}
+                              youtubeVideoId={primaryYouTubeVideoId}
+                            />
                           ) : null}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              marginTop: "6px",
+                          <MessageMetaRow
+                            createdAt={chatMessage.created_at}
+                            isOwn={chatMessage.is_own}
+                            deliveryStatus={chatMessage.delivery_status}
+                            youtubeVideoId={youtubeVideoId}
+                            watcherCount={watchRoomSummary?.viewer_count}
+                            messengerTheme={messengerTheme}
+                            onOpenYouTubeWatchRoom={(videoId) => {
+                              void handleOpenYouTubeWatchRoom(videoId);
                             }}
-                          >
-                            <Text
-                              style={{
-                                color: "var(--mess-muted-text)",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {new Date(chatMessage.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                              {chatMessage.is_own ? (
-                                chatMessage.delivery_status === "pending" ? (
-                                  <LoadingOutlined style={{ marginLeft: "6px" }} spin />
-                                ) : (
-                                  <CheckOutlined style={{ marginLeft: "6px" }} />
-                                )
-                              ) : null}
-                            </Text>
-                            {youtubeVideoId ? (
-                              <Tooltip
-                                title="Watch on Your side"
-                                classNames={{
-                                  root:
-                                    messengerTheme === "mono"
-                                      ? "youtube-tooltip youtube-tooltip-mono"
-                                      : "youtube-tooltip",
-                                }}
-                              >
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<YoutubeFilled />}
-                                  aria-label="Open YouTube preview"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleOpenYouTubeWatchRoom(youtubeVideoId);
-                                  }}
-                                  className={
-                                    messengerTheme === "mono"
-                                      ? "youtube-trigger-btn youtube-trigger-btn-mono"
-                                      : "youtube-trigger-btn"
-                                  }
-                                  style={{
-                                    height: "20px",
-                                    minWidth: "20px",
-                                    padding: 0,
-                                    marginLeft: "auto",
-                                  }}
-                                />
-                              </Tooltip>
-                            ) : null}
-                            {watchRoomSummary ? (
-                              <Text style={{ color: "var(--mess-muted-text)", fontSize: "12px" }}>
-                                {watchRoomSummary.viewer_count}
-                              </Text>
-                            ) : null}
-                          </div>
+                          />
                         </div>
                       </Dropdown>
                     </Fragment>

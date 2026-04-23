@@ -55,6 +55,7 @@ export interface ChatAttachmentType {
   original_name: string;
   mime_type: string;
   size_bytes: number;
+  duration_seconds?: number;
   url?: string;
   status?: "pending" | "ready" | "failed";
   upload_progress?: number;
@@ -65,6 +66,7 @@ export interface ChatAttachmentApiType {
   original_name: string;
   mime_type: string;
   size_bytes: number;
+  duration_seconds?: number | null;
   download_url?: string | null;
   status?: "pending" | "ready" | "failed";
 }
@@ -109,6 +111,7 @@ export interface AttachmentInitResponse {
 
 export interface AttachmentCompletePayload {
   sha256?: string;
+  duration_seconds?: number;
 }
 
 export interface AttachmentCompleteResponse {
@@ -116,6 +119,7 @@ export interface AttachmentCompleteResponse {
   status: "pending" | "ready" | "failed";
   mime_type: string;
   size_bytes: number;
+  duration_seconds?: number | null;
 }
 
 export interface AttachmentDownloadResponse {

@@ -77,6 +77,7 @@ export function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
           original_name: message.attachment.original_name,
           mime_type: message.attachment.mime_type,
           size_bytes: message.attachment.size_bytes,
+          duration_seconds: message.attachment.duration_seconds ?? undefined,
           url: resolvedAttachmentUrl,
           status: message.attachment.status ?? "ready",
         }
@@ -327,6 +328,61 @@ export function extractYouTubeVideoId(text: string): string | null {
   }
 
   return null;
+}
+
+export async function readAudioDurationSeconds(file: File): Promise<number | null> {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  if (!file.type.startsWith("audio/")) {
+    return null;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const audioElement = document.createElement("audio");
+    audioElement.preload = "metadata";
+
+    const durationSeconds = await new Promise<number | null>((resolve) => {
+      let settled = false;
+      const finish = (value: number | null) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(value);
+      };
+
+      const timeoutId = window.setTimeout(() => finish(null), 5000);
+
+      const handleLoaded = () => {
+        window.clearTimeout(timeoutId);
+        const duration = audioElement.duration;
+        if (Number.isFinite(duration) && duration > 0) {
+          finish(duration);
+          return;
+        }
+        finish(null);
+      };
+
+      const handleError = () => {
+        window.clearTimeout(timeoutId);
+        finish(null);
+      };
+
+      audioElement.addEventListener("loadedmetadata", handleLoaded, { once: true });
+      audioElement.addEventListener("error", handleError, { once: true });
+      audioElement.src = objectUrl;
+      audioElement.load();
+    });
+
+    if (durationSeconds === null) {
+      return null;
+    }
+    return Math.max(0, durationSeconds);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 export function renderTextWithClickableUrls(text: string): React.ReactNode {
