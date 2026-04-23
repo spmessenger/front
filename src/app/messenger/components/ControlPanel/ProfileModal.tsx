@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import { Avatar, Flex, Input, Upload, message } from "antd";
+import { Avatar, Button, Flex, Input, Upload, message } from "antd";
 import type { GetProp, UploadProps } from "antd";
 import Text from "antd/lib/typography/Text";
 import { InfoCircleOutlined, UserOutlined } from "@ant-design/icons";
@@ -8,18 +8,22 @@ import { useModalSetter } from "@/hooks/features/ui/modal";
 import { useAvatarCrop } from "@/hooks/features/ui/avatarCrop";
 import AvatarCropModal from "@/components/AvatarCropModal";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
+import type { MessengerTheme } from "../../types";
 
 type UploadFile = Parameters<GetProp<UploadProps, "beforeUpload">>[0];
 
 type ProfileUpdated = {
   username: string;
   avatar_url?: string;
+  subscription_tier?: "free" | "premium";
 };
 
 type ProfileModalProps = {
   onClose: () => void;
   username: string;
   avatarUrl?: string;
+  subscriptionTier?: "free" | "premium";
+  messengerTheme: MessengerTheme;
   onUpdated: (profile: ProfileUpdated) => void;
 };
 
@@ -27,6 +31,8 @@ export default function ProfileModal({
   onClose,
   username,
   avatarUrl,
+  subscriptionTier,
+  messengerTheme,
   onUpdated,
 }: ProfileModalProps) {
   const setModal = useModalSetter();
@@ -59,6 +65,18 @@ export default function ProfileModal({
     }
   }, [avatarCrop]);
 
+  const goToPricingPage = React.useCallback(() => {
+    setModal({ clear: true });
+    onClose();
+    window.location.href = "/pricing";
+  }, [onClose, setModal]);
+
+  const goToPaymentPage = React.useCallback(() => {
+    setModal({ clear: true });
+    onClose();
+    window.location.href = "/pricing/payment?tier=premium";
+  }, [onClose, setModal]);
+
   React.useEffect(() => {
     const closeModal = () => {
       setModal({ clear: true });
@@ -81,7 +99,11 @@ export default function ProfileModal({
           avatar: avatarCrop.avatarPayload,
         });
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
-        onUpdated({ username: data.username, avatar_url: data.avatar_url });
+        onUpdated({
+          username: data.username,
+          avatar_url: data.avatar_url,
+          subscription_tier: data.subscription_tier,
+        });
         message.success("Profile updated.");
         closeModal();
       } catch {
@@ -94,6 +116,7 @@ export default function ProfileModal({
     setModal({
       open: true,
       title: "Profile",
+      className: messengerTheme === "mono" ? "profile-modal-mono" : undefined,
       okText: "Save",
       cancelText: "Cancel",
       onOk: () => void submitProfile(),
@@ -154,7 +177,39 @@ export default function ProfileModal({
               <InfoCircleOutlined style={{ color: "rgba(63, 40, 49, 0.75)" }} />
               <Text type="secondary">Update your username and avatar.</Text>
             </Flex>
-          </Flex>
+            <Flex align="center" justify="flex-start" gap={8} style={{ width: "100%" }}>
+              <Text type="secondary">Tier:</Text>
+              <button
+                type="button"
+                onClick={goToPricingPage}
+                style={{
+                  border: 0,
+                  background: "transparent",
+                  color: "var(--line)",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-pixel), monospace",
+                  fontSize: "0.92em",
+                }}
+              >
+                <Text strong style={{ color: "inherit" }}>
+                  {subscriptionTier === "premium" ? "Premium" : "Free"}
+                </Text>
+              </button>
+            </Flex>
+            {subscriptionTier !== "premium" ? (
+              <Flex justify="flex-start" style={{ width: "100%" }}>
+                <Button type="primary" onClick={goToPaymentPage}>
+                  Upgrade
+                </Button>
+              </Flex>
+            ) : null}
+            {subscriptionTier === "premium" ? (
+              <Flex justify="flex-start" style={{ width: "100%" }}>
+                <Text type="secondary">You are on the highest tier.</Text>
+              </Flex>
+            ) : null}
+            </Flex>
         </Flex>
       ),
       confirmLoading: submitting,
@@ -170,8 +225,11 @@ export default function ProfileModal({
     onClose,
     onUpdated,
     setModal,
+    messengerTheme,
     showUsernameError,
+    subscriptionTier,
     submitting,
+    goToPaymentPage,
     uploadProfileAvatar,
   ]);
 

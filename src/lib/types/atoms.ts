@@ -3,6 +3,7 @@ export type ModalAtom = Partial<{
   content: React.ReactNode;
   title: string;
   footer: React.ReactNode | null;
+  className: string;
   confirmLoading: boolean;
   cancelText: string;
   okText: string;

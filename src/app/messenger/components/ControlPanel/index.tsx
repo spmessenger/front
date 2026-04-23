@@ -17,6 +17,7 @@ import ChatsList from "../ChatsList";
 import MessengerApi from "@/lib/api/messenger";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import type { ChatType, ContactType } from "@/lib/types";
+import type { MessengerTheme } from "../../types";
 import {
   useChatsSetter,
   useSelectedChatSetter,
@@ -148,13 +149,21 @@ function ModalManipulator({
   onClose,
   username,
   avatarUrl,
+  subscriptionTier,
+  messengerTheme,
   onProfileUpdated,
 }: {
   menuKey: number;
   onClose: () => void;
   username: string;
   avatarUrl?: string;
-  onProfileUpdated: (profile: { username: string; avatar_url?: string }) => void;
+  subscriptionTier?: "free" | "premium";
+  messengerTheme: MessengerTheme;
+  onProfileUpdated: (profile: {
+    username: string;
+    avatar_url?: string;
+    subscription_tier?: "free" | "premium";
+  }) => void;
 }) {
   switch (menuKey) {
     case MenuItemKey.Profile:
@@ -163,6 +172,8 @@ function ModalManipulator({
           onClose={onClose}
           username={username}
           avatarUrl={avatarUrl}
+          subscriptionTier={subscriptionTier}
+          messengerTheme={messengerTheme}
           onUpdated={onProfileUpdated}
         />
       );
@@ -175,11 +186,12 @@ function ModalManipulator({
   }
 }
 
-export default function ControlPanel() {
+export default function ControlPanel({ messengerTheme }: { messengerTheme: MessengerTheme }) {
   const [menuKey, setMenuKey] = React.useState<number>(-1);
   const [open, setOpen] = React.useState(false);
   const [username, setUsername] = React.useState("Username");
   const [avatarUrl, setAvatarUrl] = React.useState<string | undefined>();
+  const [subscriptionTier, setSubscriptionTier] = React.useState<"free" | "premium">("free");
 
   React.useEffect(() => {
     const storedUsername = window.localStorage.getItem(AUTH_USERNAME_STORAGE_KEY);
@@ -192,6 +204,7 @@ export default function ControlPanel() {
       .then(({ data }) => {
         setUsername(data.username);
         setAvatarUrl(data.avatar_url);
+        setSubscriptionTier(data.subscription_tier ?? "free");
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
       })
       .catch(() => {
@@ -225,21 +238,30 @@ export default function ControlPanel() {
         onClose={closeManipulator}
         username={username}
         avatarUrl={avatarUrl}
+        subscriptionTier={subscriptionTier}
+        messengerTheme={messengerTheme}
         onProfileUpdated={(profile) => {
           setUsername(profile.username);
           setAvatarUrl(profile.avatar_url);
+          setSubscriptionTier(profile.subscription_tier ?? "free");
         }}
       />
       <Drawer
         open={open}
         placement="left"
+        rootClassName={messengerTheme === "mono" ? "control-panel-drawer-mono" : undefined}
         title={
           <Flex align="center" gap={8}>
             <Avatar
               size="large"
               src={avatarUrl || "https://api.dicebear.com/7.x/miniavs/svg?seed=1"}
             />
-            <Text strong className="retro-pixel-text">{username}</Text>
+            <Text
+              strong
+              className={messengerTheme === "mono" ? "auth-mono-text" : "retro-pixel-text"}
+            >
+              {username}
+            </Text>
           </Flex>
         }
         onClose={() => setOpen(false)}
@@ -248,11 +270,16 @@ export default function ControlPanel() {
           selectable={false}
           items={items}
           mode="vertical"
+          className={messengerTheme === "mono" ? "control-panel-menu-mono" : undefined}
           onClick={onClick}
         />
       </Drawer>
       <Flex align="center" justify="center" style={{ height: "100%" }}>
-        <Button icon={<MoreOutlined />} onClick={() => setOpen(true)} />
+        <Button
+          className={messengerTheme === "mono" ? "control-panel-trigger-mono" : undefined}
+          icon={<MoreOutlined />}
+          onClick={() => setOpen(true)}
+        />
       </Flex>
     </Fragment>
   );

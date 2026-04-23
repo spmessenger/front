@@ -3,9 +3,10 @@
 import React from "react";
 import { Avatar, Button, Dropdown, Input, Modal as AntdModal, Popover, Typography } from "antd";
 import type { MenuProps } from "antd";
-import { CheckOutlined, LoadingOutlined, SmileOutlined } from "@ant-design/icons";
+import { CheckOutlined, FullscreenExitOutlined, FullscreenOutlined, LoadingOutlined, SmileOutlined } from "@ant-design/icons";
 import type { ContactType, WatchRoomChatMessageType, WatchRoomType } from "@/lib/types";
 import type { MessengerTheme } from "../types";
+import { API_BASE_URL } from "@/lib/config";
 
 const { Text } = Typography;
 
@@ -35,6 +36,9 @@ interface YouTubeWatchRoomModalsProps {
   watchRoomViewerItems: WatchRoomViewerItem[];
   watchRoomChatMessages: WatchRoomChatMessageType[];
   watchRoomReactions: WatchRoomReactionView[];
+  youtubeAccessMode: "direct" | "assisted";
+  youtubeAssistEnabled: boolean;
+  canEnableYouTubeAssist: boolean;
   currentUserId: number | null;
   isSocketConnected: boolean;
   isWatchRoomInviteModalOpen: boolean;
@@ -42,6 +46,7 @@ interface YouTubeWatchRoomModalsProps {
   availableUsers: ContactType[];
   onCloseWatchRoom: () => void;
   onSyncTargetSelect: (targetUserId: number) => void;
+  onToggleYouTubeAssistEnabled: (enabled: boolean) => void;
   onOpenInviteModal: () => void;
   onCloseInviteModal: () => void;
   onInviteUserSelect: (userId: number) => void;
@@ -64,6 +69,9 @@ export default function YouTubeWatchRoomModals({
   watchRoomViewerItems,
   watchRoomChatMessages,
   watchRoomReactions,
+  youtubeAccessMode,
+  youtubeAssistEnabled,
+  canEnableYouTubeAssist,
   currentUserId,
   isSocketConnected,
   isWatchRoomInviteModalOpen,
@@ -71,6 +79,7 @@ export default function YouTubeWatchRoomModals({
   availableUsers,
   onCloseWatchRoom,
   onSyncTargetSelect,
+  onToggleYouTubeAssistEnabled,
   onOpenInviteModal,
   onCloseInviteModal,
   onInviteUserSelect,
@@ -79,19 +88,63 @@ export default function YouTubeWatchRoomModals({
   onSendWatchRoomReaction,
   handleYouTubePlayerHostRef,
 }: YouTubeWatchRoomModalsProps) {
-  const reactionEmojiSet = React.useMemo(() => ["👍", "❤️", "😂", "😮", "🔥", "👏"], []);
+  const reactionEmojiSet = React.useMemo(() => ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F525}", "\u{1F44F}"], []);
   const inviteableUsers = availableUsers.filter((user) => !activeWatchRoom?.viewer_user_ids.includes(user.id));
   const syncMenuItems = syncTargetMenuItems ?? [];
   const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
+  const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
+  const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
+  const [isAssistedIframeLoaded, setIsAssistedIframeLoaded] = React.useState(false);
+  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] = React.useState(false);
+  const assistedIframeLoadedRef = React.useRef(false);
   const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
+  const stageContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const overlayInactivityTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const visibleViewerItems = watchRoomViewerItems.slice(0, 7);
   const hiddenViewerCount = Math.max(0, watchRoomViewerItems.length - visibleViewerItems.length);
+  const assistedIframeSrc = React.useMemo(() => {
+    if (!youtubePreviewVideoId) {
+      return "";
+    }
+    const upstreamEmbedUrl = `https://www.youtube.com/embed/${encodeURIComponent(youtubePreviewVideoId)}?autoplay=0&rel=0&playsinline=1&enablejsapi=0`;
+    return `${API_BASE_URL}/api/youtube/assist/tunnel?url=${encodeURIComponent(upstreamEmbedUrl)}`;
+  }, [youtubePreviewVideoId]);
+  const directIframeSrc = React.useMemo(() => {
+    if (!youtubePreviewVideoId) {
+      return "";
+    }
+    return `https://www.youtube.com/embed/${youtubePreviewVideoId}?autoplay=0&rel=0&fs=0&enablejsapi=1`;
+  }, [youtubePreviewVideoId]);
+  const effectiveIframeSrc = React.useMemo(() => {
+    if (youtubeAccessMode !== "assisted") {
+      return directIframeSrc;
+    }
+    return isAssistedIframeFallbackActive ? directIframeSrc : assistedIframeSrc;
+  }, [assistedIframeSrc, directIframeSrc, isAssistedIframeFallbackActive, youtubeAccessMode]);
 
   React.useEffect(() => {
     if (!youtubePreviewVideoId) {
       setWatchRoomChatDraft("");
     }
   }, [youtubePreviewVideoId]);
+
+  React.useEffect(() => {
+    if (youtubeAccessMode !== "assisted") {
+      setIsAssistedIframeLoaded(false);
+      setIsAssistedIframeFallbackActive(false);
+      assistedIframeLoadedRef.current = false;
+      return;
+    }
+    setIsAssistedIframeLoaded(false);
+    setIsAssistedIframeFallbackActive(false);
+    assistedIframeLoadedRef.current = false;
+    const timeoutId = setTimeout(() => {
+      setIsAssistedIframeFallbackActive((current) => (assistedIframeLoadedRef.current ? current : true));
+    }, 9000);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [youtubeAccessMode, youtubePreviewVideoId]);
 
   React.useEffect(() => {
     const node = watchRoomChatMessagesRef.current;
@@ -101,6 +154,77 @@ export default function YouTubeWatchRoomModals({
     node.scrollTop = node.scrollHeight;
   }, [watchRoomChatMessages]);
 
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      const stage = stageContainerRef.current;
+      if (!stage) {
+        setIsStageFullscreen(false);
+        return;
+      }
+      const fullscreenElement = document.fullscreenElement;
+      setIsStageFullscreen(fullscreenElement === stage);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const markOverlayUiActive = React.useCallback(() => {
+    setIsOverlayUiVisible(true);
+    if (overlayInactivityTimeoutRef.current) {
+      clearTimeout(overlayInactivityTimeoutRef.current);
+      overlayInactivityTimeoutRef.current = null;
+    }
+    if (!isStageFullscreen) {
+      return;
+    }
+    overlayInactivityTimeoutRef.current = setTimeout(() => {
+      setIsOverlayUiVisible(false);
+    }, 2300);
+  }, [isStageFullscreen]);
+
+  React.useEffect(() => {
+    if (!isStageFullscreen) {
+      setIsOverlayUiVisible(true);
+      if (overlayInactivityTimeoutRef.current) {
+        clearTimeout(overlayInactivityTimeoutRef.current);
+        overlayInactivityTimeoutRef.current = null;
+      }
+      return;
+    }
+    markOverlayUiActive();
+  }, [isStageFullscreen, markOverlayUiActive]);
+
+  React.useEffect(() => {
+    if (!isStageFullscreen) {
+      return;
+    }
+
+    const handleUserActivity = () => {
+      markOverlayUiActive();
+    };
+
+    window.addEventListener("mousedown", handleUserActivity);
+    window.addEventListener("touchstart", handleUserActivity, { passive: true });
+    window.addEventListener("keydown", handleUserActivity);
+
+    return () => {
+      window.removeEventListener("mousedown", handleUserActivity);
+      window.removeEventListener("touchstart", handleUserActivity);
+      window.removeEventListener("keydown", handleUserActivity);
+    };
+  }, [isStageFullscreen, markOverlayUiActive]);
+
+  React.useEffect(() => {
+    return () => {
+      if (overlayInactivityTimeoutRef.current) {
+        clearTimeout(overlayInactivityTimeoutRef.current);
+        overlayInactivityTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const submitWatchRoomChat = React.useCallback(() => {
     const content = watchRoomChatDraft.trim();
     if (!content || !isSocketConnected) {
@@ -109,6 +233,18 @@ export default function YouTubeWatchRoomModals({
     onSendWatchRoomChatMessage(content);
     setWatchRoomChatDraft("");
   }, [isSocketConnected, onSendWatchRoomChatMessage, watchRoomChatDraft]);
+
+  const toggleStageFullscreen = React.useCallback(() => {
+    const stage = stageContainerRef.current;
+    if (!stage) {
+      return;
+    }
+    if (document.fullscreenElement === stage) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    void stage.requestFullscreen().catch(() => undefined);
+  }, []);
 
   return (
     <>
@@ -193,6 +329,16 @@ export default function YouTubeWatchRoomModals({
                 >
                   Invite
                 </Button>
+                {false ? (
+                  <Button
+                    className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
+                    onClick={() => onToggleYouTubeAssistEnabled(!youtubeAssistEnabled)}
+                    disabled={!canEnableYouTubeAssist}
+                    title={canEnableYouTubeAssist ? "Toggle assisting mode" : "Premium required for assisting"}
+                  >
+                    {youtubeAssistEnabled ? "Assist On" : "Assist Off"}
+                  </Button>
+                ) : null}
                 <Button
                   danger
                   className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
@@ -203,14 +349,22 @@ export default function YouTubeWatchRoomModals({
               </div>
             </div>
             <div
+              ref={stageContainerRef}
+              className={
+                isStageFullscreen
+                  ? `watch-room-stage watch-room-stage-fullscreen ${isOverlayUiVisible ? "" : "watch-room-ui-inactive"}`
+                  : "watch-room-stage"
+              }
               style={{
                 display: "flex",
                 gap: "12px",
                 alignItems: "stretch",
                 flexWrap: "nowrap",
               }}
+              onTouchStart={markOverlayUiActive}
             >
               <div
+                className="watch-room-player-shell"
                 style={{
                   position: "relative",
                   flex: "1 1 72%",
@@ -223,10 +377,16 @@ export default function YouTubeWatchRoomModals({
               >
                 <iframe
                   title="YouTube fallback"
-                  src={`https://www.youtube.com/embed/${youtubePreviewVideoId}?autoplay=0&rel=0`}
+                  src={effectiveIframeSrc}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   referrerPolicy="strict-origin-when-cross-origin"
                   allowFullScreen
+                  onLoad={() => {
+                    if (youtubeAccessMode === "assisted") {
+                      assistedIframeLoadedRef.current = true;
+                      setIsAssistedIframeLoaded(true);
+                    }
+                  }}
                   style={{
                     position: "absolute",
                     inset: 0,
@@ -237,6 +397,9 @@ export default function YouTubeWatchRoomModals({
                     pointerEvents: isYouTubePlayerUsable ? "none" : "auto",
                   }}
                 />
+                {youtubeAccessMode === "assisted" ? (
+                  <div className="watch-room-access-badge">Assisted mode</div>
+                ) : null}
                 <div
                   style={{
                     position: "absolute",
@@ -248,7 +411,7 @@ export default function YouTubeWatchRoomModals({
                   }}
                   ref={handleYouTubePlayerHostRef}
                 />
-                {!isYouTubePlayerUsable && !isYouTubeApiBlocked ? (
+                {!isYouTubePlayerUsable && !isYouTubeApiBlocked && youtubeAccessMode !== "assisted" ? (
                   <div
                     className={
                       messengerTheme === "mono"
@@ -274,14 +437,27 @@ export default function YouTubeWatchRoomModals({
                     </span>
                   ))}
                 </div>
+                <Button
+                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono watch-room-player-fs-btn" : "watch-room-btn watch-room-player-fs-btn"}
+                  onClick={toggleStageFullscreen}
+                  title={isStageFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  icon={isStageFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                />
               </div>
+              {isStageFullscreen ? (
+                <div
+                  className="watch-room-chat-hover-zone"
+                  onMouseEnter={markOverlayUiActive}
+                />
+              ) : null}
               <div
                 className={
                   messengerTheme === "mono"
-                    ? "watch-room-chat-panel watch-room-chat-panel-mono"
-                    : "watch-room-chat-panel"
+                    ? `watch-room-chat-panel watch-room-chat-panel-mono ${isStageFullscreen ? "watch-room-chat-panel-hoverable" : ""}`
+                    : `watch-room-chat-panel ${isStageFullscreen ? "watch-room-chat-panel-hoverable" : ""}`
                 }
                 style={{ flex: "0 0 300px", maxWidth: "360px" }}
+                onMouseEnter={markOverlayUiActive}
               >
                 <Text className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}>
                   Room chat
@@ -454,3 +630,4 @@ export default function YouTubeWatchRoomModals({
     </>
   );
 }
+

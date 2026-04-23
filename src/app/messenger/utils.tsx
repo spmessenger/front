@@ -199,11 +199,18 @@ export function getChatPreviewText(message: Pick<ChatMessageType, "text" | "cont
   if (message.content_type === "document") {
     return "Document";
   }
+  if (message.content_type === "voice") {
+    return "Voice message";
+  }
 
   return "Attachment";
 }
 
 export function resolveContentTypeForFile(file: File, kind: AttachmentPickerKind): ChatMessageContentType {
+  if (kind === "voice") {
+    return "voice";
+  }
+
   if (kind === "photo_or_video") {
     if (file.type.startsWith("image/")) {
       return "image";
@@ -219,6 +226,9 @@ export function resolveContentTypeForFile(file: File, kind: AttachmentPickerKind
 export function resolveAttachmentPickerKind(file: File): AttachmentPickerKind {
   if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
     return "photo_or_video";
+  }
+  if (file.type.startsWith("audio/")) {
+    return "voice";
   }
 
   return "document";

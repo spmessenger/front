@@ -8,6 +8,11 @@ export interface ProfileType {
   id: number;
   username: string;
   avatar_url?: string;
+  subscription_tier?: "free" | "premium";
+  youtube_access_mode?: "direct" | "assisted";
+  tier_features?: string[];
+  youtube_assisted_enabled?: boolean;
+  can_enable_assisted?: boolean;
 }
 
 export type ChatKind = "dialog" | "group" | "private";
@@ -43,7 +48,7 @@ export interface ChatMessageType {
   forwarded_from_content?: string;
 }
 
-export type ChatMessageContentType = "text" | "image" | "video" | "document";
+export type ChatMessageContentType = "text" | "image" | "video" | "document" | "voice";
 
 export interface ChatAttachmentType {
   id: string;
@@ -80,6 +85,11 @@ export interface ChatMessageApiType {
   attachment_group_id?: string | null;
   created_at_timestamp: number;
   is_own: boolean;
+}
+
+export interface ChatMessageDeleteResponse {
+  chat_id: number;
+  message_id: number;
 }
 
 export interface AttachmentInitPayload {
@@ -126,6 +136,7 @@ export interface WatchRoomType {
   id: string;
   chat_id: number;
   youtube_video_id: string;
+  youtube_access_mode?: "direct" | "assisted";
   host_user_id: number;
   viewer_user_ids: number[];
   viewer_count: number;
@@ -134,6 +145,19 @@ export interface WatchRoomType {
   sync_is_playing: boolean;
   viewer_sync_states: WatchRoomViewerSyncStateType[];
   created_at: number;
+}
+
+export interface YouTubeAccessContextType {
+  subscription_tier: "free" | "premium";
+  youtube_access_mode: "direct" | "assisted";
+  tier_features: string[];
+  youtube_assisted_enabled: boolean;
+  can_enable_assisted: boolean;
+}
+
+export interface YouTubeAccessTierType {
+  tier: "free" | "premium";
+  features: string[];
 }
 
 export interface WatchRoomViewerSyncStateType {

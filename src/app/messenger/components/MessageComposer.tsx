@@ -1,14 +1,16 @@
 "use client";
 
 import React from "react";
-import { Button, Dropdown, Image, Input, Modal as AntdModal, Typography } from "antd";
+import { Button, Dropdown, Image, Input, Modal as AntdModal, Typography, message } from "antd";
 import type { MenuProps } from "antd";
 import {
+  AudioOutlined,
   CloseOutlined,
   FileImageOutlined,
   FileTextOutlined,
   PaperClipOutlined,
   SmileOutlined,
+  StopOutlined,
 } from "@ant-design/icons";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import type { ChatMessageType } from "@/lib/types";
@@ -51,6 +53,16 @@ export default function MessageComposer({
   const pendingMediaFilesRef = React.useRef<Array<{ id: string; file: File; previewUrl: string }>>([]);
   const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
+  const voiceRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = React.useRef<MediaStream | null>(null);
+  const voiceChunksRef = React.useRef<BlobPart[]>([]);
+  const voiceTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceRecordingStartedAtRef = React.useRef<number>(0);
+  const shouldDiscardRecordedVoiceRef = React.useRef(false);
+  const isVoiceHoldActiveRef = React.useRef(false);
+  const isVoiceKeyboardHoldActiveRef = React.useRef(false);
+  const [isVoiceRecording, setIsVoiceRecording] = React.useState(false);
+  const [voiceRecordingSeconds, setVoiceRecordingSeconds] = React.useState(0);
 
   function appendEmoji(emojiData: EmojiClickData) {
     setDraft((currentDraft) => `${currentDraft}${emojiData.emoji}`);
@@ -138,12 +150,6 @@ export default function MessageComposer({
     pendingMediaFilesRef.current = pendingMediaFiles;
   }, [pendingMediaFiles]);
 
-  React.useEffect(() => {
-    return () => {
-      pendingMediaFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
-  }, []);
-
   async function handleAttachmentInputChange(
     event: React.ChangeEvent<HTMLInputElement>,
     kind: AttachmentPickerKind,
@@ -173,6 +179,168 @@ export default function MessageComposer({
     );
     closeMediaModal();
   }
+
+  const stopVoiceTracks = React.useCallback(() => {
+    const stream = voiceStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    voiceStreamRef.current = null;
+  }, []);
+
+  const clearVoiceTimer = React.useCallback(() => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+  }, []);
+
+  const stopVoiceRecording = React.useCallback(() => {
+    const recorder = voiceRecorderRef.current;
+    if (!recorder) {
+      return;
+    }
+    if (recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, []);
+
+  const cancelVoiceRecording = React.useCallback(() => {
+    shouldDiscardRecordedVoiceRef.current = true;
+    isVoiceHoldActiveRef.current = false;
+    isVoiceKeyboardHoldActiveRef.current = false;
+    clearVoiceTimer();
+    setIsVoiceRecording(false);
+    setVoiceRecordingSeconds(0);
+    stopVoiceRecording();
+  }, [clearVoiceTimer, stopVoiceRecording]);
+
+  const startVoiceRecording = React.useCallback(async () => {
+    if (!isSocketConnected || isAttachmentUploading) {
+      return;
+    }
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      message.error("Voice recording is not supported in this browser.");
+      return;
+    }
+    if (typeof MediaRecorder === "undefined") {
+      message.error("Media recorder is not available in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/mp4",
+      ];
+      const mimeType = preferredMimeTypes.find((value) => MediaRecorder.isTypeSupported(value));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      voiceRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          voiceChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = async () => {
+        isVoiceHoldActiveRef.current = false;
+        isVoiceKeyboardHoldActiveRef.current = false;
+        clearVoiceTimer();
+        setIsVoiceRecording(false);
+        const recordedSeconds = Math.max(
+          0,
+          Math.round((Date.now() - voiceRecordingStartedAtRef.current) / 1000),
+        );
+        setVoiceRecordingSeconds(0);
+
+        const chunks = voiceChunksRef.current;
+        voiceChunksRef.current = [];
+        stopVoiceTracks();
+
+        if (shouldDiscardRecordedVoiceRef.current) {
+          shouldDiscardRecordedVoiceRef.current = false;
+          return;
+        }
+
+        if (chunks.length === 0) {
+          return;
+        }
+
+        if (recordedSeconds < 1) {
+          message.warning("Voice message is too short.");
+          return;
+        }
+
+        const blobType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: blobType });
+        const extension = blobType.includes("ogg")
+          ? "ogg"
+          : blobType.includes("mp4")
+            ? "m4a"
+            : blobType.includes("wav")
+              ? "wav"
+              : "webm";
+        const file = new File([blob], `voice-${Date.now()}.${extension}`, { type: blob.type || blobType });
+        await onSendAttachment(file, "voice");
+      };
+      recorder.onerror = () => {
+        clearVoiceTimer();
+        setIsVoiceRecording(false);
+        setVoiceRecordingSeconds(0);
+        stopVoiceTracks();
+        message.error("Failed to record voice message.");
+      };
+
+      recorder.start(300);
+      shouldDiscardRecordedVoiceRef.current = false;
+      voiceRecordingStartedAtRef.current = Date.now();
+      setVoiceRecordingSeconds(0);
+      setIsVoiceRecording(true);
+      clearVoiceTimer();
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceRecordingSeconds((current) => current + 1);
+      }, 1000);
+    } catch {
+      isVoiceHoldActiveRef.current = false;
+      isVoiceKeyboardHoldActiveRef.current = false;
+      stopVoiceTracks();
+      clearVoiceTimer();
+      setIsVoiceRecording(false);
+      setVoiceRecordingSeconds(0);
+      message.error("Microphone access denied.");
+    }
+  }, [clearVoiceTimer, isAttachmentUploading, isSocketConnected, onSendAttachment, stopVoiceTracks]);
+
+  const beginVoiceHoldRecording = React.useCallback(() => {
+    if (isVoiceRecording || isAttachmentUploading || !isSocketConnected) {
+      return;
+    }
+    isVoiceHoldActiveRef.current = true;
+    void startVoiceRecording();
+  }, [isAttachmentUploading, isSocketConnected, isVoiceRecording, startVoiceRecording]);
+
+  const endVoiceHoldRecording = React.useCallback(() => {
+    isVoiceHoldActiveRef.current = false;
+    if (!isVoiceRecording) {
+      return;
+    }
+    stopVoiceRecording();
+  }, [isVoiceRecording, stopVoiceRecording]);
+
+  React.useEffect(() => {
+    return () => {
+      pendingMediaFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      clearVoiceTimer();
+      stopVoiceRecording();
+      stopVoiceTracks();
+    };
+  }, [clearVoiceTimer, stopVoiceRecording, stopVoiceTracks]);
 
   return (
     <div
@@ -277,6 +445,87 @@ export default function MessageComposer({
           autoSize={{ minRows: 1, maxRows: 4 }}
           style={{ minWidth: 0 }}
           disabled={!isSocketConnected}
+        />
+        {isVoiceRecording ? (
+          <Text
+            style={{
+              color: "var(--mess-muted-text)",
+              minWidth: "70px",
+              textAlign: "center",
+            }}
+          >
+            {`REC ${Math.floor(voiceRecordingSeconds / 60)
+              .toString()
+              .padStart(2, "0")}:${(voiceRecordingSeconds % 60).toString().padStart(2, "0")}`}
+          </Text>
+        ) : null}
+        {isVoiceRecording ? (
+          <Button
+            size="large"
+            icon={<CloseOutlined />}
+            aria-label="Cancel recording"
+            title="Cancel recording"
+            onClick={cancelVoiceRecording}
+            disabled={!isSocketConnected || isAttachmentUploading}
+          />
+        ) : null}
+        <Button
+          size="large"
+          icon={isVoiceRecording ? <StopOutlined /> : <AudioOutlined />}
+          aria-label={isVoiceRecording ? "Recording voice message" : "Hold to record voice message"}
+          title={isVoiceRecording ? "Release to send" : "Hold to record"}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            beginVoiceHoldRecording();
+          }}
+          onMouseUp={(event) => {
+            event.preventDefault();
+            endVoiceHoldRecording();
+          }}
+          onMouseLeave={() => {
+            if (isVoiceHoldActiveRef.current) {
+              endVoiceHoldRecording();
+            }
+          }}
+          onTouchStart={(event) => {
+            event.preventDefault();
+            beginVoiceHoldRecording();
+          }}
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            endVoiceHoldRecording();
+          }}
+          onTouchCancel={(event) => {
+            event.preventDefault();
+            endVoiceHoldRecording();
+          }}
+          onKeyDown={(event) => {
+            if (event.repeat || (event.key !== " " && event.key !== "Enter")) {
+              return;
+            }
+            event.preventDefault();
+            if (isVoiceKeyboardHoldActiveRef.current) {
+              return;
+            }
+            isVoiceKeyboardHoldActiveRef.current = true;
+            beginVoiceHoldRecording();
+          }}
+          onKeyUp={(event) => {
+            if (event.key !== " " && event.key !== "Enter") {
+              return;
+            }
+            event.preventDefault();
+            if (!isVoiceKeyboardHoldActiveRef.current) {
+              return;
+            }
+            isVoiceKeyboardHoldActiveRef.current = false;
+            endVoiceHoldRecording();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+          }}
+          disabled={!isSocketConnected || isAttachmentUploading}
+          danger={isVoiceRecording}
         />
         <Button
           size="large"

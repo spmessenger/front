@@ -145,6 +145,9 @@ export default function Messenger() {
   const [isWatchRoomSyncing, setIsWatchRoomSyncing] = React.useState(false);
   const [currentUserId, setCurrentUserId] = React.useState<number | null>(null);
   const [currentUsername, setCurrentUsername] = React.useState<string | null>(null);
+  const [youtubeAccessMode, setYoutubeAccessMode] = React.useState<"direct" | "assisted">("direct");
+  const [youtubeAssistEnabled, setYoutubeAssistEnabled] = React.useState(false);
+  const [canEnableYouTubeAssist, setCanEnableYouTubeAssist] = React.useState(false);
   const [activeWatchRoom, setActiveWatchRoom] = React.useState<WatchRoomType | null>(null);
   const [watchRoomChatMessagesByRoomId, setWatchRoomChatMessagesByRoomId] = React.useState<
     Record<string, WatchRoomChatMessageType[]>
@@ -352,6 +355,37 @@ export default function Messenger() {
       }
     }
   }, []);
+
+  const applyDeletedMessageLocally = React.useCallback((chatId: number, messageId: number) => {
+    setChatMessages((current) => {
+      const existingMessages = current[chatId] ?? [];
+      const nextMessages = existingMessages.filter((message) => message.id !== messageId);
+      if (nextMessages.length === existingMessages.length) {
+        return current;
+      }
+
+      setChats((currentChats) =>
+        sortChatsByRules(
+          currentChats.map((chat) => {
+            if (chat.id !== chatId) {
+              return chat;
+            }
+            const lastMessage = nextMessages[nextMessages.length - 1];
+            return {
+              ...chat,
+              last_message: lastMessage ? getChatPreviewText(lastMessage) : undefined,
+              last_message_at: lastMessage?.created_at,
+            };
+          }),
+        ),
+      );
+
+      return {
+        ...current,
+        [chatId]: nextMessages,
+      };
+    });
+  }, [setChatMessages, setChats]);
   const chatsForFolders = React.useMemo(
     () => chats.filter((chat) => chat.type !== "private"),
     [chats],
@@ -438,6 +472,9 @@ export default function Messenger() {
       .then(({ data }) => {
         setCurrentUserId(data.id);
         setCurrentUsername(data.username);
+        setYoutubeAccessMode(data.youtube_access_mode ?? "direct");
+        setYoutubeAssistEnabled(Boolean(data.youtube_assisted_enabled));
+        setCanEnableYouTubeAssist(Boolean(data.can_enable_assisted));
       })
       .catch(() => undefined);
   }, []);
@@ -539,6 +576,10 @@ export default function Messenger() {
   const activeWatchRoomReactions = React.useMemo(
     () => (activeWatchRoom ? watchRoomReactionsByRoomId[activeWatchRoom.id] ?? [] : []),
     [activeWatchRoom, watchRoomReactionsByRoomId],
+  );
+  const activeWatchRoomYouTubeAccessMode = React.useMemo(
+    () => youtubeAccessMode,
+    [youtubeAccessMode],
   );
 
   React.useEffect(() => {
@@ -864,6 +905,16 @@ export default function Messenger() {
   React.useEffect(() => {
     const initialSyncSeconds = activeWatchRoom?.sync_current_time_seconds ?? 0;
     const initialSyncIsPlaying = activeWatchRoom?.sync_is_playing ?? false;
+    if (activeWatchRoomYouTubeAccessMode === "assisted") {
+      const previousPlayer = youTubePlayerRef.current;
+      if (hasYouTubePlayerMethods(previousPlayer)) {
+        previousPlayer.destroy();
+      }
+      youTubePlayerRef.current = null;
+      setIsYouTubePlayerReady(false);
+      setIsYouTubeApiBlocked(false);
+      return;
+    }
     if (
       !youtubePreviewVideoId ||
       !youTubePlayerHostElement ||
@@ -894,6 +945,7 @@ export default function Messenger() {
         autoplay: 1,
         controls: 1,
         rel: 0,
+        fs: 0,
         enablejsapi: 1,
         origin: window.location.origin,
         playsinline: 1,
@@ -969,6 +1021,7 @@ export default function Messenger() {
       youTubePlayerRef.current = null;
     };
   }, [
+    activeWatchRoomYouTubeAccessMode,
     isYouTubeApiReady,
     youtubePreviewVideoId,
     activeWatchRoom?.id,
@@ -1186,6 +1239,11 @@ export default function Messenger() {
         return;
       }
 
+      if (payload.type === "message_deleted") {
+        applyDeletedMessageLocally(payload.chat_id, payload.message_id);
+        return;
+      }
+
       if (payload.type === "messages") {
         const mappedMessages = payload.messages.map(mapApiMessage);
         const isOlderPage = payload.request_before_message_id !== null && payload.request_before_message_id !== undefined;
@@ -1319,6 +1377,7 @@ export default function Messenger() {
       socketRef.current = null;
     };
   }, [
+    applyDeletedMessageLocally,
     appendWatchRoomReaction,
     closeModal,
     refreshChats,
@@ -1486,7 +1545,7 @@ export default function Messenger() {
     const contentType = resolveContentTypeForFile(file, kind);
     const optimisticMessageId = existingMessageId ?? -Date.now();
     const localPreviewUrl =
-      contentType === "image" || contentType === "video"
+      contentType === "image" || contentType === "video" || contentType === "voice"
         ? URL.createObjectURL(file)
         : undefined;
 
@@ -1707,6 +1766,18 @@ export default function Messenger() {
     }
 
     await handleSendAttachment(retryData.file, retryData.kind, messageId);
+  }
+
+  async function handleDeleteMessage(messageId: number) {
+    if (selectedChatId === null) {
+      return;
+    }
+    try {
+      const { data } = await MessengerApi.deleteMessage(selectedChatId, messageId);
+      applyDeletedMessageLocally(data.chat_id, data.message_id);
+    } catch {
+      antdMessage.error("Failed to delete message.");
+    }
   }
 
   function handleSendMessage(text: string): boolean {
@@ -2267,6 +2338,25 @@ export default function Messenger() {
     }
   }
 
+  async function handleToggleYouTubeAssistEnabled(enabled: boolean) {
+    try {
+      const { data } = await AuthApi.setYouTubeAssistEnabled(enabled);
+      setYoutubeAssistEnabled(data.youtube_assisted_enabled);
+      setCanEnableYouTubeAssist(data.can_enable_assisted);
+      setYoutubeAccessMode(data.youtube_access_mode);
+      setActiveWatchRoom((current) => (
+        current
+          ? {
+              ...current,
+              youtube_access_mode: data.youtube_access_mode,
+            }
+          : current
+      ));
+    } catch {
+      antdMessage.error("Failed to switch assisting mode.");
+    }
+  }
+
   async function handleSyncWatchRoom(targetUserId: number) {
     if (!activeWatchRoom || !hasYouTubePlayerMethods(youTubePlayerRef.current)) {
       return;
@@ -2438,7 +2528,7 @@ export default function Messenger() {
             borderBottom: "3px solid var(--line)",
           }}
         >
-          <ControlPanel />
+          <ControlPanel messengerTheme={messengerTheme} />
         </Header>
         <Content style={{ overflowY: "auto", minHeight: 0 }}>
           <ChatGroupsList
@@ -2663,6 +2753,15 @@ export default function Messenger() {
                       key: "forward",
                       label: "Forward",
                     },
+                    ...(chatMessage.is_own
+                      ? [
+                          {
+                            key: "delete",
+                            label: "Delete",
+                            danger: true,
+                          },
+                        ]
+                      : []),
                   ];
                   const isMediaGroupCandidate = isGroupedMediaMessage(chatMessage);
                   const messageUrls = extractUrls(chatMessage.text);
@@ -2742,6 +2841,10 @@ export default function Messenger() {
                             }
                             if (key === "forward") {
                               handleOpenForwardModal(chatMessage);
+                              return;
+                            }
+                            if (key === "delete") {
+                              void handleDeleteMessage(chatMessage.id);
                             }
                           },
                         }}
@@ -2955,6 +3058,24 @@ export default function Messenger() {
                                     }}
                                   />
                                 </div>
+                              ) : chatMessage.content_type === "voice" && chatMessage.attachment.url ? (
+                                <div className="voice-message-bubble">
+                                  <audio
+                                    src={chatMessage.attachment.url}
+                                    controls
+                                    preload="metadata"
+                                    style={{ display: "block", width: "100%" }}
+                                  />
+                                  <Button
+                                    size="small"
+                                    onClick={() => {
+                                      void handleOpenAttachment(chatMessage);
+                                    }}
+                                    disabled={chatMessage.attachment.status === "pending"}
+                                  >
+                                    Open
+                                  </Button>
+                                </div>
                               ) : (
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                                   <Button
@@ -2995,7 +3116,9 @@ export default function Messenger() {
                               )}
                               {!hasMediaGroup &&
                               chatMessage.attachment.status === "pending" &&
-                              (chatMessage.content_type === "image" || chatMessage.content_type === "video") ? (
+                              (chatMessage.content_type === "image" ||
+                                chatMessage.content_type === "video" ||
+                                chatMessage.content_type === "voice") ? (
                                 <div
                                   style={{
                                     display: "flex",
@@ -3284,6 +3407,9 @@ export default function Messenger() {
         watchRoomViewerItems={watchRoomViewerItems}
         watchRoomChatMessages={activeWatchRoomChatMessages}
         watchRoomReactions={activeWatchRoomReactions}
+        youtubeAccessMode={activeWatchRoomYouTubeAccessMode}
+        youtubeAssistEnabled={youtubeAssistEnabled}
+        canEnableYouTubeAssist={canEnableYouTubeAssist}
         currentUserId={currentUserId}
         isSocketConnected={isSocketConnected}
         isWatchRoomInviteModalOpen={isWatchRoomInviteModalOpen}
@@ -3294,6 +3420,9 @@ export default function Messenger() {
         }}
         onSyncTargetSelect={(targetUserId) => {
           void handleSyncWatchRoom(targetUserId);
+        }}
+        onToggleYouTubeAssistEnabled={(enabled) => {
+          void handleToggleYouTubeAssistEnabled(enabled);
         }}
         onOpenInviteModal={() => setIsWatchRoomInviteModalOpen(true)}
         onCloseInviteModal={() => {

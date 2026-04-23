@@ -1,5 +1,10 @@
 import axios from "@/lib/axios";
-import type { AvatarUploadPayload, ProfileType } from "@/lib/types";
+import type {
+  AvatarUploadPayload,
+  ProfileType,
+  YouTubeAccessContextType,
+  YouTubeAccessTierType,
+} from "@/lib/types";
 
 export const AUTH_USERNAME_STORAGE_KEY = "messenger.auth.username";
 
@@ -14,6 +19,22 @@ export default class AuthApi {
 
   static getProfile() {
     return axios.get<ProfileType>("/api/profile");
+  }
+
+  static getYouTubeAccessContext() {
+    return axios.get<YouTubeAccessContextType>("/api/youtube-access/context");
+  }
+
+  static getYouTubeAccessTiers() {
+    return axios.get<YouTubeAccessTierType[]>("/api/youtube-access/tiers");
+  }
+
+  static completeMockBilling(tier: "free" | "premium" = "premium") {
+    return axios.post<ProfileType>("/api/billing/mock/complete", { tier });
+  }
+
+  static setYouTubeAssistEnabled(enabled: boolean) {
+    return axios.post<YouTubeAccessContextType>("/api/youtube-access/assisted-toggle", { enabled });
   }
 
   static updateProfile(payload: {

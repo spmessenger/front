@@ -11,6 +11,7 @@ import type {
   ChatFolderType,
   ChatMessageContentType,
   ChatMessageApiType,
+  ChatMessageDeleteResponse,
   ContactType,
   CreateGroupPayload,
   ExpenseCreatePayloadType,
@@ -73,6 +74,10 @@ export default class MessengerApi {
       attachment_id: options?.attachmentId,
       attachment_group_id: options?.attachmentGroupId,
     });
+  }
+
+  static deleteMessage(chatId: number, messageId: number) {
+    return axios.delete<ChatMessageDeleteResponse>(`/api/chats/${chatId}/messages/${messageId}`);
   }
 
   static initAttachment(chatId: number, payload: AttachmentInitPayload) {

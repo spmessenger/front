@@ -102,6 +102,50 @@ a {
   color: #ffffff;
 }
 
+.messenger-theme-mono,
+.auth-mono-page,
+.ant-modal.watch-room-modal-mono .ant-modal-content,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu,
+.watch-room-reaction-popover-mono .ant-popover-inner {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.34) #0e1013;
+}
+
+.messenger-theme-mono *::-webkit-scrollbar,
+.auth-mono-page *::-webkit-scrollbar,
+.ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar,
+.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.messenger-theme-mono *::-webkit-scrollbar-track,
+.auth-mono-page *::-webkit-scrollbar-track,
+.ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-track,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-track,
+.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-track {
+  background: #0e1013;
+}
+
+.messenger-theme-mono *::-webkit-scrollbar-thumb,
+.auth-mono-page *::-webkit-scrollbar-thumb,
+.ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-thumb,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-thumb,
+.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.32);
+  border: 2px solid #0e1013;
+  border-radius: 999px;
+}
+
+.messenger-theme-mono *::-webkit-scrollbar-thumb:hover,
+.auth-mono-page *::-webkit-scrollbar-thumb:hover,
+.ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-thumb:hover,
+.watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-thumb:hover,
+.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.48);
+}
+
 .messenger-theme-mono .retro-pixel-text,
 .messenger-theme-mono .ant-typography,
 .messenger-theme-mono .ant-typography-secondary,
@@ -257,6 +301,77 @@ a {
   background: #f6e6d0 !important;
   border-color: #f6e6d0 !important;
   color: #111315 !important;
+}
+
+.profile-modal-mono .ant-modal-content {
+  background: #101113 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.profile-modal-mono .ant-modal-header {
+  background: #101113 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.profile-modal-mono .ant-modal-title,
+.profile-modal-mono .ant-typography,
+.profile-modal-mono .ant-input,
+.profile-modal-mono .ant-btn {
+  color: #ffffff !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.profile-modal-mono .ant-input {
+  background: #111315 !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+}
+
+.profile-modal-mono .ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.profile-modal-mono .ant-btn:not(.ant-btn-primary) {
+  background: #111315 !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+}
+
+.profile-modal-mono .ant-btn-primary {
+  background: #f6e6d0 !important;
+  border-color: #f6e6d0 !important;
+  color: #111315 !important;
+}
+
+.control-panel-trigger-mono {
+  background: #111315 !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
+}
+
+.control-panel-drawer-mono .ant-drawer-content {
+  background: #0f1217 !important;
+  color: #ffffff !important;
+}
+
+.control-panel-drawer-mono .ant-drawer-header {
+  background: #0f1217 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.control-panel-drawer-mono .ant-drawer-title,
+.control-panel-drawer-mono .ant-drawer-close,
+.control-panel-drawer-mono .ant-menu,
+.control-panel-drawer-mono .ant-menu-item {
+  color: #ffffff !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.control-panel-menu-mono {
+  background: transparent !important;
+  border-inline-end: 0 !important;
+}
+
+.control-panel-menu-mono .ant-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 .auth-mono-page .auth-mono-form .ant-btn-primary:hover {
@@ -535,6 +650,91 @@ a {
   min-height: 0;
 }
 
+.watch-room-stage {
+  position: relative;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: #000000;
+  align-items: stretch;
+}
+
+.watch-room-stage:fullscreen {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: #000000;
+  align-items: stretch;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-player-shell,
+.watch-room-stage:fullscreen .watch-room-player-shell {
+  flex: 1 1 auto !important;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0 !important;
+  padding-top: 0 !important;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-hover-zone,
+.watch-room-stage:fullscreen .watch-room-chat-hover-zone {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 24px;
+  height: 100%;
+  z-index: 6;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-panel-hoverable,
+.watch-room-stage:fullscreen .watch-room-chat-panel-hoverable {
+  position: absolute !important;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(34vw, 380px) !important;
+  max-width: none !important;
+  min-height: 0;
+  margin: 0;
+  z-index: 7;
+  transform: translateX(calc(100% - 16px));
+  transition: transform 0.22s ease;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-panel-hoverable:hover,
+.watch-room-stage:fullscreen .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage:fullscreen .watch-room-chat-panel-hoverable:hover {
+  transform: translateX(0);
+}
+
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-player-fs-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-hover-zone {
+  opacity: 0;
+  pointer-events: auto;
+}
+
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-panel-hoverable {
+  transform: translateX(100%);
+}
+
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-panel-hoverable:hover {
+  transform: translateX(0);
+}
+
+.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-panel-hoverable .watch-room-chat-list,
+.watch-room-stage:fullscreen .watch-room-chat-panel-hoverable .watch-room-chat-list {
+  max-height: none;
+}
+
 .watch-room-chat-panel-mono {
   background: #111315;
   border-color: rgba(255, 255, 255, 0.2);
@@ -637,6 +837,32 @@ a {
   animation: watch-room-reaction-float 1.7s ease-out forwards;
 }
 
+.watch-room-player-fs-btn {
+  position: absolute !important;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  min-width: 38px !important;
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  transition: opacity 0.18s ease;
+}
+
+.watch-room-access-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  background: rgba(16, 19, 21, 0.85);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  user-select: none;
+}
+
 @keyframes watch-room-reaction-float {
   0% {
     opacity: 0;
@@ -717,4 +943,24 @@ a {
   background: rgba(0, 0, 0, 0.62);
   color: #ffffff;
   font-family: var(--font-geist-mono), monospace !important;
+}
+
+.voice-message-bubble {
+  width: min(360px, 100%);
+  min-width: 260px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--mess-soft-card-bg);
+  border: 1px solid var(--mess-soft-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-message-bubble audio {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 180px;
+  max-width: 100%;
 }

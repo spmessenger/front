@@ -6,7 +6,7 @@ import type {
 } from "@/lib/types";
 
 export type MessengerTheme = "retro" | "mono";
-export type AttachmentPickerKind = "photo_or_video" | "document";
+export type AttachmentPickerKind = "photo_or_video" | "document" | "voice";
 
 export type ChatSocketResponse =
   | {
@@ -37,6 +37,11 @@ export type ChatSocketResponse =
   | {
       type: "watch_room_chat_message";
       message: WatchRoomChatMessageType;
+    }
+  | {
+      type: "message_deleted";
+      chat_id: number;
+      message_id: number;
     }
   | {
       type: "error";
