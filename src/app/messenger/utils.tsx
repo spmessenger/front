@@ -77,7 +77,11 @@ export function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
           original_name: message.attachment.original_name,
           mime_type: message.attachment.mime_type,
           size_bytes: message.attachment.size_bytes,
-          duration_seconds: message.attachment.duration_seconds ?? undefined,
+          duration_ms: message.attachment.duration_ms ?? undefined,
+          duration_seconds: message.attachment.duration_seconds
+            ?? (typeof message.attachment.duration_ms === "number"
+              ? message.attachment.duration_ms / 1000
+              : undefined),
           url: resolvedAttachmentUrl,
           status: message.attachment.status ?? "ready",
         }
@@ -97,7 +101,7 @@ export function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
 }
 
 export function shortenText(text: string, maxLength: number = REPLY_PREVIEW_MAX_LENGTH): string {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = stripInlineMarkdown(text).replace(/\s+/g, " ").trim();
   if (normalizedText.length <= maxLength) {
     return normalizedText;
   }
@@ -179,8 +183,21 @@ export function sortChatsByRules(chats: ChatType[]): ChatType[] {
   });
 }
 
+function stripInlineMarkdown(text: string): string {
+  if (!text) {
+    return "";
+  }
+
+  return text
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1");
+}
+
 export function getChatPreviewText(message: Pick<ChatMessageType, "text" | "content_type" | "attachment">): string {
-  const normalizedText = message.text.trim();
+  const normalizedText = stripInlineMarkdown(message.text).trim();
   if (normalizedText.length > 0) {
     return normalizedText;
   }
@@ -330,7 +347,53 @@ export function extractYouTubeVideoId(text: string): string | null {
   return null;
 }
 
-export async function readAudioDurationSeconds(file: File): Promise<number | null> {
+export function buildGeoShareUrl(
+  latitude: number,
+  longitude: number,
+  zoom: number = 16,
+  accuracyMeters?: number,
+): string {
+  const safeLatitude = Math.max(-90, Math.min(90, latitude));
+  const safeLongitude = Math.max(-180, Math.min(180, longitude));
+  const accuracyParam = Number.isFinite(accuracyMeters)
+    ? `&accuracy=${Math.max(0, Math.round(accuracyMeters ?? 0))}`
+    : "";
+  return `https://www.openstreetmap.org/?mlat=${safeLatitude.toFixed(6)}&mlon=${safeLongitude.toFixed(6)}${accuracyParam}#map=${zoom}/${safeLatitude.toFixed(6)}/${safeLongitude.toFixed(6)}`;
+}
+
+export function parseGeoShareUrl(
+  urlValue: string,
+): { latitude: number; longitude: number; accuracyMeters?: number } | null {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(urlValue);
+  } catch {
+    return null;
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase().replace(/^www\./, "");
+  if (hostname !== "openstreetmap.org") {
+    return null;
+  }
+
+  const latitude = Number(parsedUrl.searchParams.get("mlat"));
+  const longitude = Number(parsedUrl.searchParams.get("mlon"));
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return null;
+  }
+
+  const accuracy = Number(parsedUrl.searchParams.get("accuracy"));
+  return {
+    latitude,
+    longitude,
+    accuracyMeters: Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : undefined,
+  };
+}
+
+export async function readAudioDurationMs(file: File): Promise<number | null> {
   if (typeof window === "undefined") {
     return null;
   }
@@ -343,7 +406,7 @@ export async function readAudioDurationSeconds(file: File): Promise<number | nul
     const audioElement = document.createElement("audio");
     audioElement.preload = "metadata";
 
-    const durationSeconds = await new Promise<number | null>((resolve) => {
+    const durationMs = await new Promise<number | null>((resolve) => {
       let settled = false;
       const finish = (value: number | null) => {
         if (settled) {
@@ -359,7 +422,7 @@ export async function readAudioDurationSeconds(file: File): Promise<number | nul
         window.clearTimeout(timeoutId);
         const duration = audioElement.duration;
         if (Number.isFinite(duration) && duration > 0) {
-          finish(duration);
+          finish(Math.round(duration * 1000));
           return;
         }
         finish(null);
@@ -376,16 +439,21 @@ export async function readAudioDurationSeconds(file: File): Promise<number | nul
       audioElement.load();
     });
 
-    if (durationSeconds === null) {
+    if (durationMs === null) {
       return null;
     }
-    return Math.max(0, durationSeconds);
+    return Math.max(0, durationMs);
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
 }
 
-export function renderTextWithClickableUrls(text: string): React.ReactNode {
+export async function readAudioDurationSeconds(file: File): Promise<number | null> {
+  const durationMs = await readAudioDurationMs(file);
+  return durationMs === null ? null : durationMs / 1000;
+}
+
+function renderPlainTextWithClickableUrls(text: string): React.ReactNode {
   if (!text) {
     return text;
   }
@@ -427,6 +495,111 @@ export function renderTextWithClickableUrls(text: string): React.ReactNode {
   }
 
   return nodes.length > 0 ? nodes : text;
+}
+
+function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let index = 0;
+  let keyIndex = 0;
+
+  while (index < text.length) {
+    const source = text.slice(index);
+    const linkMatch = source.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
+    if (linkMatch) {
+      const [, label, rawUrl] = linkMatch;
+      const normalizedUrl = normalizeExternalUrl(rawUrl);
+      if (normalizedUrl) {
+        nodes.push(
+          <a
+            key={`${keyPrefix}-link-${keyIndex}`}
+            href={normalizedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            style={{ textDecoration: "underline", textUnderlineOffset: "2px" }}
+          >
+            {renderInlineMarkdown(label, `${keyPrefix}-link-label-${keyIndex}`)}
+          </a>,
+        );
+        index += linkMatch[0].length;
+        keyIndex += 1;
+        continue;
+      }
+    }
+
+    const boldMatch = source.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__)/);
+    if (boldMatch) {
+      const content = boldMatch[1] ?? boldMatch[2] ?? "";
+      nodes.push(
+        <strong key={`${keyPrefix}-bold-${keyIndex}`}>
+          {renderInlineMarkdown(content, `${keyPrefix}-bold-content-${keyIndex}`)}
+        </strong>,
+      );
+      index += boldMatch[0].length;
+      keyIndex += 1;
+      continue;
+    }
+
+    const italicMatch = source.match(/^(?:\*([^*]+)\*|_([^_]+)_)/);
+    if (italicMatch) {
+      const content = italicMatch[1] ?? italicMatch[2] ?? "";
+      nodes.push(
+        <em key={`${keyPrefix}-italic-${keyIndex}`}>
+          {renderInlineMarkdown(content, `${keyPrefix}-italic-content-${keyIndex}`)}
+        </em>,
+      );
+      index += italicMatch[0].length;
+      keyIndex += 1;
+      continue;
+    }
+
+    let nextSpecialIndex = source.length;
+    const specialChars = ["[", "*", "_"];
+    specialChars.forEach((char) => {
+      const foundIndex = source.indexOf(char);
+      if (foundIndex >= 0 && foundIndex < nextSpecialIndex) {
+        nextSpecialIndex = foundIndex;
+      }
+    });
+
+    const plainChunk = source.slice(0, nextSpecialIndex);
+    if (plainChunk) {
+      const renderedChunk = renderPlainTextWithClickableUrls(plainChunk);
+      if (Array.isArray(renderedChunk)) {
+        renderedChunk.forEach((node, chunkIndex) => {
+          nodes.push(<React.Fragment key={`${keyPrefix}-plain-${keyIndex}-${chunkIndex}`}>{node}</React.Fragment>);
+        });
+      } else {
+        nodes.push(
+          <React.Fragment key={`${keyPrefix}-plain-${keyIndex}`}>
+            {renderedChunk}
+          </React.Fragment>,
+        );
+      }
+      index += plainChunk.length;
+      keyIndex += 1;
+      continue;
+    }
+
+    nodes.push(
+      <React.Fragment key={`${keyPrefix}-char-${keyIndex}`}>
+        {source[0]}
+      </React.Fragment>,
+    );
+    index += 1;
+    keyIndex += 1;
+  }
+
+  return nodes;
+}
+
+export function renderTextWithClickableUrls(text: string): React.ReactNode {
+  if (!text) {
+    return text;
+  }
+
+  const rendered = renderInlineMarkdown(text, "md");
+  return rendered.length > 0 ? rendered : text;
 }
 
 export function watchRoomMapKey(chatId: number, youtubeVideoId: string): string {

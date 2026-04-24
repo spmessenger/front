@@ -68,7 +68,7 @@ import {
   resolveAttachmentPickerKind,
   resolveContentTypeForFile,
   resolveMessageAuthor,
-  readAudioDurationSeconds,
+  readAudioDurationMs,
   shortenText,
   sortChatsByRules,
   uploadFileWithProgress,
@@ -152,6 +152,7 @@ export default function Messenger() {
   const [isWatchRoomSyncing, setIsWatchRoomSyncing] = React.useState(false);
   const [currentUserId, setCurrentUserId] = React.useState<number | null>(null);
   const [currentUsername, setCurrentUsername] = React.useState<string | null>(null);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = React.useState<string | undefined>(undefined);
   const [youtubeAccessMode, setYoutubeAccessMode] = React.useState<"direct" | "assisted">("direct");
   const [youtubeAssistEnabled, setYoutubeAssistEnabled] = React.useState(false);
   const [canEnableYouTubeAssist, setCanEnableYouTubeAssist] = React.useState(false);
@@ -450,6 +451,7 @@ export default function Messenger() {
       .then(({ data }) => {
         setCurrentUserId(data.id);
         setCurrentUsername(data.username);
+        setCurrentUserAvatarUrl(data.avatar_url);
         setYoutubeAccessMode(data.youtube_access_mode ?? "direct");
         setYoutubeAssistEnabled(Boolean(data.youtube_assisted_enabled));
         setCanEnableYouTubeAssist(Boolean(data.can_enable_assisted));
@@ -1521,9 +1523,12 @@ export default function Messenger() {
     }
 
     const contentType = resolveContentTypeForFile(file, kind);
-    const optimisticVoiceDurationSeconds = contentType === "voice"
-      ? await readAudioDurationSeconds(file)
+    const optimisticVoiceDurationMs = contentType === "voice"
+      ? await readAudioDurationMs(file)
       : null;
+    const optimisticVoiceDurationSeconds = optimisticVoiceDurationMs === null
+      ? null
+      : optimisticVoiceDurationMs / 1000;
     const optimisticMessageId = existingMessageId ?? -Date.now();
     const localPreviewUrl =
       contentType === "image" || contentType === "video" || contentType === "voice"
@@ -1544,6 +1549,7 @@ export default function Messenger() {
           original_name: file.name,
           mime_type: file.type || "application/octet-stream",
           size_bytes: file.size,
+          duration_ms: optimisticVoiceDurationMs ?? undefined,
           duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
           url: localPreviewUrl,
           status: "pending",
@@ -1585,6 +1591,7 @@ export default function Messenger() {
                         original_name: file.name,
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
+                        duration_ms: optimisticVoiceDurationMs ?? undefined,
                         duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl ?? message.attachment.url,
                         status: "pending",
@@ -1595,6 +1602,7 @@ export default function Messenger() {
                         original_name: file.name,
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
+                        duration_ms: optimisticVoiceDurationMs ?? undefined,
                         duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl,
                         status: "pending",
@@ -1654,6 +1662,7 @@ export default function Messenger() {
       );
 
       await MessengerApi.completeAttachment(selectedChatId, initData.attachment_id, {
+        duration_ms: optimisticVoiceDurationMs ?? undefined,
         duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
       });
 
@@ -2916,6 +2925,16 @@ export default function Messenger() {
                               imageUrl={primaryLinkPreview?.imageUrl}
                               siteName={primaryLinkPreview?.siteName}
                               youtubeVideoId={primaryYouTubeVideoId}
+                              markerAvatarUrl={
+                                chatMessage.is_own
+                                  ? currentUserAvatarUrl
+                                  : selectedChat?.avatar_url
+                              }
+                              markerInitial={
+                                chatMessage.is_own
+                                  ? (currentUsername?.slice(0, 1).toUpperCase() ?? "Y")
+                                  : (selectedChat?.title?.slice(0, 1).toUpperCase() ?? "U")
+                              }
                             />
                           ) : null}
                           <MessageMetaRow
@@ -2923,6 +2942,17 @@ export default function Messenger() {
                             isOwn={chatMessage.is_own}
                             deliveryStatus={chatMessage.delivery_status}
                             youtubeVideoId={youtubeVideoId}
+                            geoShareUrl={primaryMessageUrl}
+                            markerAvatarUrl={
+                              chatMessage.is_own
+                                ? currentUserAvatarUrl
+                                : selectedChat?.avatar_url
+                            }
+                            markerInitial={
+                              chatMessage.is_own
+                                ? (currentUsername?.slice(0, 1).toUpperCase() ?? "Y")
+                                : (selectedChat?.title?.slice(0, 1).toUpperCase() ?? "U")
+                            }
                             watcherCount={watchRoomSummary?.viewer_count}
                             messengerTheme={messengerTheme}
                             onOpenYouTubeWatchRoom={(videoId) => {

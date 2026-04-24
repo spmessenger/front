@@ -9,12 +9,12 @@ import type {
 export const AUTH_USERNAME_STORAGE_KEY = "messenger.auth.username";
 
 export default class AuthApi {
-  static login(username: string, password: string) {
-    return axios.post("/api/login", { username, password });
+  static login(email: string, verificationCode: string) {
+    return axios.post("/api/login", { email, verification_code: verificationCode });
   }
 
-  static register(username: string, password: string) {
-    return axios.post("/api/register", { username, password });
+  static register(email: string, verificationCode: string) {
+    return axios.post("/api/register", { email, verification_code: verificationCode });
   }
 
   static getProfile() {

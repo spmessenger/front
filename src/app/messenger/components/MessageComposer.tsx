@@ -12,9 +12,12 @@ import {
 } from "antd";
 import type { MenuProps } from "antd";
 import {
+  BoldOutlined,
   CloseOutlined,
+  EnvironmentOutlined,
   FileImageOutlined,
   FileTextOutlined,
+  ItalicOutlined,
   LockFilled,
   PaperClipOutlined,
   SendOutlined,
@@ -23,7 +26,7 @@ import {
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import type { ChatMessageType } from "@/lib/types";
 import type { AttachmentPickerKind, MessengerTheme } from "../types";
-import { resolveMessageAuthor, shortenText } from "../utils";
+import { buildGeoShareUrl, resolveMessageAuthor, shortenText } from "../utils";
 import VoiceRecordButton from "./VoiceRecordButton";
 
 const { Text } = Typography;
@@ -64,6 +67,7 @@ export default function MessageComposer({
   >([]);
   const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
+  const textAreaRef = React.useRef<any>(null);
   const voiceRecorderRef = React.useRef<MediaRecorder | null>(null);
   const voiceStreamRef = React.useRef<MediaStream | null>(null);
   const voiceChunksRef = React.useRef<BlobPart[]>([]);
@@ -77,6 +81,10 @@ export default function MessageComposer({
   const [isVoiceRecordingLocked, setIsVoiceRecordingLocked] =
     React.useState(false);
   const [voiceRecordingSeconds, setVoiceRecordingSeconds] = React.useState(0);
+  const [isGeoSharing, setIsGeoSharing] = React.useState(false);
+  const shouldShowGeoHint = /\b(i\s*am\s*here|i'?m\s*here|im\s*here|я\s*(тут|здесь))\b/i.test(
+    draft,
+  );
 
   function appendEmoji(emojiData: EmojiClickData) {
     setDraft((currentDraft) => `${currentDraft}${emojiData.emoji}`);
@@ -94,6 +102,73 @@ export default function MessageComposer({
     }
     setDraft("");
     setIsEmojiPickerOpen(false);
+  }
+
+  async function handleShareCurrentLocation() {
+    if (!isSocketConnected || isGeoSharing) {
+      return;
+    }
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      message.error("Geolocation is not supported in this browser.");
+      return;
+    }
+
+    setIsGeoSharing(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+      const { latitude, longitude, accuracy } = position.coords;
+      const didSend = onSendMessage(
+        `I am here: [Shared location](${buildGeoShareUrl(latitude, longitude, 17, accuracy)})`,
+      );
+      if (didSend) {
+        setDraft("");
+        setIsEmojiPickerOpen(false);
+      }
+    } catch {
+      message.error("Could not get your location.");
+    } finally {
+      setIsGeoSharing(false);
+    }
+  }
+
+  function getNativeTextArea(): HTMLTextAreaElement | null {
+    return textAreaRef.current?.resizableTextArea?.textArea ?? null;
+  }
+
+  function applyInlineFormat(wrapper: string) {
+    const textArea = getNativeTextArea();
+    const currentText = draft;
+    if (!textArea) {
+      setDraft((value) => `${value}${wrapper}${wrapper}`);
+      return;
+    }
+
+    const start = textArea.selectionStart ?? currentText.length;
+    const end = textArea.selectionEnd ?? currentText.length;
+    const selected = currentText.slice(start, end);
+    const wrapped = `${wrapper}${selected}${wrapper}`;
+    const next = `${currentText.slice(0, start)}${wrapped}${currentText.slice(end)}`;
+    setDraft(next);
+
+    requestAnimationFrame(() => {
+      const node = getNativeTextArea();
+      if (!node) {
+        return;
+      }
+      node.focus();
+      if (selected.length > 0) {
+        node.setSelectionRange(start, end + wrapper.length * 2);
+        return;
+      }
+      const caret = start + wrapper.length;
+      node.setSelectionRange(caret, caret);
+    });
   }
 
   const attachmentMenuItems: MenuProps["items"] = [
@@ -463,10 +538,44 @@ export default function MessageComposer({
               icon={<CloseOutlined />}
               onClick={onCancelReply}
               style={{ color: "var(--mess-text)" }}
-            />
-          </div>
-        ) : null}
+          />
+        </div>
+      ) : null}
       </div>
+      {shouldShowGeoHint && !isVoiceRecording ? (
+        <button
+          type="button"
+          onClick={() => {
+            void handleShareCurrentLocation();
+          }}
+          disabled={!isSocketConnected || isGeoSharing}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            width: "100%",
+            padding: "8px 10px",
+            border: "1px solid var(--mess-soft-border)",
+            borderRadius: "10px",
+            background: "var(--mess-soft-card-bg)",
+            color: "var(--mess-text)",
+            cursor: isSocketConnected && !isGeoSharing ? "pointer" : "not-allowed",
+            fontFamily:
+              messengerTheme === "mono"
+                ? "var(--font-geist-mono), monospace"
+                : "var(--font-pixel), monospace",
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <EnvironmentOutlined />
+            Share current location
+          </span>
+          <Text style={{ color: "var(--mess-muted-text)", fontSize: "12px" }}>
+            {isGeoSharing ? "Locating..." : "Send map"}
+          </Text>
+        </button>
+      ) : null}
       <div
         style={{
           display: "flex",
@@ -515,6 +624,7 @@ export default function MessageComposer({
           }}
         />
         <TextArea
+          ref={textAreaRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onPressEnter={(event) => {
@@ -526,7 +636,7 @@ export default function MessageComposer({
           placeholder="Type a message"
           autoSize={{ minRows: 1, maxRows: 4 }}
           style={{ minWidth: 0 }}
-          disabled={!isSocketConnected || !isVoiceRecording}
+          disabled={!isSocketConnected || isVoiceRecording}
         />
         {isVoiceRecording ? (
           <div
@@ -569,11 +679,27 @@ export default function MessageComposer({
                   lineHeight: 1,
                 }}
               >
-                Swipe up to lock • left to cancel
+                Swipe up to lock - left to cancel
               </Text>
             )}
           </div>
         ) : null}
+        <Button
+          size="large"
+          icon={<BoldOutlined />}
+          aria-label="Bold"
+          title="Bold"
+          onClick={() => applyInlineFormat("**")}
+          disabled={!isSocketConnected || isVoiceRecording}
+        />
+        <Button
+          size="large"
+          icon={<ItalicOutlined />}
+          aria-label="Italic"
+          title="Italic"
+          onClick={() => applyInlineFormat("*")}
+          disabled={!isSocketConnected || isVoiceRecording}
+        />
         <Button
           size="large"
           icon={<SmileOutlined />}
@@ -591,15 +717,15 @@ export default function MessageComposer({
             icon={<SendOutlined />}
           />
         ) : (
-        <VoiceRecordButton
-          isVoiceRecording={isVoiceRecording}
-          isVoiceRecordingLocked={isVoiceRecordingLocked}
-          disabled={!isSocketConnected || isAttachmentUploading}
-          onBeginHold={beginVoiceHoldRecording}
-          onEndHold={endVoiceHoldRecording}
-          onLockRecording={lockVoiceRecording}
-          onCancelRecording={cancelVoiceRecording}
-        />
+          <VoiceRecordButton
+            isVoiceRecording={isVoiceRecording}
+            isVoiceRecordingLocked={isVoiceRecordingLocked}
+            disabled={!isSocketConnected || isAttachmentUploading}
+            onBeginHold={beginVoiceHoldRecording}
+            onEndHold={endVoiceHoldRecording}
+            onLockRecording={lockVoiceRecording}
+            onCancelRecording={cancelVoiceRecording}
+          />
         )}
       </div>
       {isEmojiPickerOpen ? (

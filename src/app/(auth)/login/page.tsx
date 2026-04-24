@@ -13,11 +13,11 @@ export default function Login() {
   const InputPassword = Input.Password;
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const onFinish = (values: { username: string; password: string }) => {
+  const onFinish = (values: { email: string; verificationCode: string }) => {
     setLoginError(null);
-    AuthApi.login(values.username, values.password)
+    AuthApi.login(values.email, values.verificationCode)
       .then(() => {
-        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
+        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.email);
         router.push("/messenger");
       })
       .catch((error: unknown) => {
@@ -54,16 +54,20 @@ export default function Login() {
             </FormItem>
           ) : null}
           <FormItem
-            label="Username"
-            name="username"
-            rules={[{ required: true, message: "Please input your username!" }]}
+            label="Email"
+            name="email"
+            rules={[
+              { required: true, message: "Please input your email!" },
+              { type: "email", message: "Please enter a valid email!" },
+            ]}
           >
             <Input />
           </FormItem>
           <FormItem
-            label="Password"
-            name="password"
-            rules={[{ required: true, message: "Please input your password!" }]}
+            label="Code"
+            name="verificationCode"
+            initialValue="0000"
+            rules={[{ required: true, message: "Please input your verification code!" }]}
           >
             <InputPassword />
           </FormItem>
