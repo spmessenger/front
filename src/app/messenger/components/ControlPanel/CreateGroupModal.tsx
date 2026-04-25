@@ -118,7 +118,7 @@ export default function CreateGroupModal({ onClose }: { onClose: () => void }) {
 
       const { data: chats } = await MessengerApi.getChats();
       setChats(chats);
-      setSelectedChat(data.chat.id);
+      setSelectedChat(data.chat);
       closeModal();
       message.success("Group created.");
     } catch {

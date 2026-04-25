@@ -2,35 +2,33 @@
 
 import React from "react";
 import { Button, Divider, Empty, Spin, Typography } from "antd";
-import type { ContactType, ExpenseOverviewType, ExpensePaymentType, ExpenseType } from "@/lib/types";
+import {
+  useChatExpenses,
+  useExpenseOverview,
+  useExpenseParticipants,
+  useExpensePayments,
+  useIsExpensesViewLoading,
+  useIsExpensesViewOpen,
+  useIsExpensesViewOpenSetter,
+  useMessengerTheme,
+} from "@/hooks/features/messenger/chats";
 
 const { Text } = Typography;
-
-interface ChatExpensesPanelProps {
-  open: boolean;
-  onClose: () => void;
-  messengerTheme: "retro" | "mono";
-  isLoading: boolean;
-  participants: ContactType[];
-  expenses: ExpenseType[];
-  overview: ExpenseOverviewType | null;
-  payments: ExpensePaymentType[];
-}
 
 function formatMinor(amountMinor: number): string {
   return (amountMinor / 100).toFixed(2);
 }
 
-export default function ChatExpensesPanel({
-  open,
-  onClose,
-  messengerTheme,
-  isLoading,
-  participants,
-  expenses,
-  overview,
-  payments,
-}: ChatExpensesPanelProps) {
+export default function ChatExpensesPanel() {
+  const open = useIsExpensesViewOpen();
+  const setIsExpensesViewOpen = useIsExpensesViewOpenSetter();
+  const messengerTheme = useMessengerTheme();
+  const isLoading = useIsExpensesViewLoading();
+  const participants = useExpenseParticipants();
+  const expenses = useChatExpenses();
+  const overview = useExpenseOverview();
+  const payments = useExpensePayments();
+
   if (!open) {
     return null;
   }
@@ -60,7 +58,7 @@ export default function ChatExpensesPanel({
         }}
       >
         <Text strong>Expenses</Text>
-        <Button size="small" onClick={onClose}>
+        <Button size="small" onClick={() => setIsExpensesViewOpen(false)}>
           Close
         </Button>
       </div>

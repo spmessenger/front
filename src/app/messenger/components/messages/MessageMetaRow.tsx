@@ -2,6 +2,10 @@ import React from "react";
 import { Button, Dropdown, Modal as AntdModal, Tooltip, Typography } from "antd";
 import type { MenuProps } from "antd";
 import { CheckOutlined, EnvironmentFilled, LoadingOutlined, StopOutlined, YoutubeFilled } from "@ant-design/icons";
+import {
+  useIsSocketConnected,
+  useMessengerTheme,
+} from "@/hooks/features/messenger/chats";
 import type { MessengerTheme } from "../../types";
 import { parseGeoShareUrl } from "../../utils";
 import GeoLeafletMap from "./GeoLeafletMap";
@@ -18,8 +22,6 @@ type MessageMetaRowProps = {
   markerInitial?: string;
   markerName?: string;
   watcherCount?: number;
-  messengerTheme: MessengerTheme;
-  isSocketConnected: boolean;
   isLiveLocationSharing: boolean;
   liveLocationRemainingLabel?: string | null;
   onStartLiveLocationShare: (durationSeconds: number | null) => void;
@@ -37,14 +39,14 @@ export default function MessageMetaRow({
   markerInitial,
   markerName,
   watcherCount,
-  messengerTheme,
-  isSocketConnected,
   isLiveLocationSharing,
   liveLocationRemainingLabel,
   onStartLiveLocationShare,
   onStopLiveLocationShare,
   onOpenYouTubeWatchRoom,
 }: MessageMetaRowProps) {
+  const messengerTheme = useMessengerTheme() as MessengerTheme;
+  const isSocketConnected = useIsSocketConnected();
   const [isGeoMapModalOpen, setIsGeoMapModalOpen] = React.useState(false);
   const geoPoint = parseGeoShareUrl(geoShareUrl ?? "");
   const liveLocationMenuItems: MenuProps["items"] = [

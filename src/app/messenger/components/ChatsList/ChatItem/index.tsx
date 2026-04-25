@@ -4,6 +4,7 @@ import type { ChatType } from "./types";
 import { Avatar, Badge, Dropdown, Flex } from "antd";
 import { HomeFilled, PushpinOutlined, StopOutlined } from "@ant-design/icons";
 import type { MenuProps } from "antd";
+import FormattedText from "../../FormattedText";
 
 interface ChatItemProps {
   chat: ChatType & { avatar?: React.ReactNode };
@@ -25,10 +26,19 @@ function PrivateChatItem(props: ChatItemProps) {
   return <GeneralChatItem {...props} chat={privateChat} />;
 }
 
-function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProps) {
-  const previewText = (chat.last_message ?? "No messages yet").replace(/\s+/g, " ").trim();
+function GeneralChatItem({
+  chat,
+  onClick,
+  onPinChat,
+  onUnpinChat,
+}: ChatItemProps) {
+  const previewText = (chat.last_message ?? "No messages yet")
+    .replace(/\s+/g, " ")
+    .trim();
   const isAttachmentPreviewLabel =
-    previewText === "Document" || previewText === "Photo" || previewText === "Video";
+    previewText === "Document" ||
+    previewText === "Photo" ||
+    previewText === "Video";
   const previewTime = chat.last_message_at
     ? new Date(chat.last_message_at).toLocaleTimeString([], {
         hour: "2-digit",
@@ -75,10 +85,21 @@ function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProp
     >
       <div onClick={() => onClick(chat)} style={{ cursor: "pointer" }}>
         <Flex gap={10} style={{ margin: "8px", minWidth: 0 }}>
-          {chat.avatar ?? <Avatar size={48} src={chat.avatar_url} alt={chat.title} />}
-          <Flex justify="space-between" vertical style={{ minWidth: 0, flex: 1 }}>
+          {chat.avatar ?? (
+            <Avatar size={48} src={chat.avatar_url} alt={chat.title} />
+          )}
+          <Flex
+            justify="space-between"
+            vertical
+            style={{ minWidth: 0, flex: 1 }}
+          >
             <Flex align="center" gap={6} style={{ minWidth: 0 }}>
-              <Text strong ellipsis className="retro-pixel-text" style={{ display: "block", minWidth: 0 }}>
+              <Text
+                strong
+                ellipsis
+                className="retro-pixel-text"
+                style={{ display: "block", minWidth: 0 }}
+              >
                 {chat.title}
               </Text>
               {showPinnedIcon ? (
@@ -91,9 +112,13 @@ function GeneralChatItem({ chat, onClick, onPinChat, onUnpinChat }: ChatItemProp
             <Text
               type="secondary"
               ellipsis={{ tooltip: previewText }}
-              style={{ display: "block", maxWidth: "100%", fontStyle: isAttachmentPreviewLabel ? "italic" : "normal" }}
+              style={{
+                display: "block",
+                maxWidth: "100%",
+                fontStyle: isAttachmentPreviewLabel ? "italic" : "normal",
+              }}
             >
-              {previewText}
+              <FormattedText text={previewText} />
             </Text>
           </Flex>
           <Flex

@@ -2,35 +2,40 @@
 import React, { useState } from "react";
 import AuthApi, { AUTH_USERNAME_STORAGE_KEY } from "@/lib/api/auth";
 import { extractApiErrorMessage } from "@/lib/errors/api";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Form, Input, Button, Card, Flex, Alert } from "antd";
+import type { FormProps } from "antd";
 
 const DEFAULT_LOGIN_ERROR_MESSAGE = "Failed to sign in. Please try again.";
+type AuthFormValues = { username: string; password: string };
 
 export default function Login() {
   const router = useRouter();
   const FormItem = Form.Item;
   const InputPassword = Input.Password;
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const onFinish = (values: { username: string; password: string }) => {
+  const onFinish = (values: AuthFormValues) => {
     setLoginError(null);
+    setLoading(true);
     AuthApi.login(values.username, values.password)
       .then(() => {
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
         router.push("/messenger");
+        setLoading(false);
       })
       .catch((error: unknown) => {
         setLoginError(
           extractApiErrorMessage(error, DEFAULT_LOGIN_ERROR_MESSAGE),
         );
+        setLoading(false);
       });
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix type
-  const onFinishFailed = (errorInfo: any) => {
-    console.log("Failed:", errorInfo);
-  };
+  const onFinishFailed: FormProps<AuthFormValues>["onFinishFailed"] = () =>
+    undefined;
 
   return (
     <div className="auth-mono-page">
@@ -46,15 +51,14 @@ export default function Login() {
           labelCol={{ span: 8 }}
           wrapperCol={{ span: 16 }}
           style={{ maxWidth: 400 }}
-          initialValues={{ remember: true }}
           onFinish={onFinish}
           onFinishFailed={onFinishFailed}
         >
-          {loginError ? (
+          {loginError && (
             <FormItem wrapperCol={{ span: 24 }}>
               <Alert type="error" showIcon message={loginError} />
             </FormItem>
-          ) : null}
+          )}
           <FormItem
             label="Username"
             name="username"
@@ -78,13 +82,14 @@ export default function Login() {
                 type="primary"
                 htmlType="submit"
                 className="auth-mono-text"
+                loading={loading}
               >
                 Submit
               </Button>
             </FormItem>
-            <Button type="link" href="/register" className="auth-mono-text">
+            <Link href="/register" className="auth-mono-text">
               Register
-            </Button>
+            </Link>
           </Flex>
         </Form>
       </Card>

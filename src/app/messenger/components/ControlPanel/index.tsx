@@ -75,7 +75,7 @@ function CreateDialogModal({ onClose }: { onClose: () => void }) {
       const { data } = await MessengerApi.createDialog(contact.id);
       const { data: chats } = await MessengerApi.getChats();
       setChats(chats);
-      setSelectedChat(data.chat.id);
+      setSelectedChat(data.chat);
       message.success(`Dialog with ${contact.username} created.`);
       closeModal();
     } catch {

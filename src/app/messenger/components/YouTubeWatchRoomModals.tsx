@@ -4,7 +4,23 @@ import React from "react";
 import { Avatar, Button, Dropdown, Input, Modal as AntdModal, Popover, Typography } from "antd";
 import type { MenuProps } from "antd";
 import { CheckOutlined, FullscreenExitOutlined, FullscreenOutlined, LoadingOutlined, SmileOutlined } from "@ant-design/icons";
-import type { ContactType, WatchRoomChatMessageType, WatchRoomType } from "@/lib/types";
+import {
+  useActiveWatchRoom,
+  useCanEnableYouTubeAssist,
+  useIsSocketConnected,
+  useIsWatchRoomInviteModalOpen,
+  useIsWatchRoomSyncing,
+  useIsYouTubeApiBlocked,
+  useMessengerTheme,
+  useSyncedToUserId,
+  useWatchRoomChatMessagesByRoomId,
+  useWatchRoomInviteUserId,
+  useWatchRoomReactionsByRoomId,
+  useYoutubeAccessMode,
+  useYoutubeAssistEnabled,
+  useYoutubePreviewVideoId,
+} from "@/hooks/features/messenger/chats";
+import type { ContactType, WatchRoomChatMessageType } from "@/lib/types";
 import type { MessengerTheme } from "../types";
 import { API_BASE_URL } from "@/lib/config";
 
@@ -24,25 +40,11 @@ type WatchRoomReactionView = {
 };
 
 interface YouTubeWatchRoomModalsProps {
-  messengerTheme: MessengerTheme;
-  youtubePreviewVideoId: string | null;
-  activeWatchRoom: WatchRoomType | null;
-  isWatchRoomSyncing: boolean;
   isYouTubePlayerUsable: boolean;
-  isYouTubeApiBlocked: boolean;
-  syncedToUserId: number | null;
   syncedToUserName: string | null;
   syncTargetMenuItems: MenuProps["items"];
   watchRoomViewerItems: WatchRoomViewerItem[];
-  watchRoomChatMessages: WatchRoomChatMessageType[];
-  watchRoomReactions: WatchRoomReactionView[];
-  youtubeAccessMode: "direct" | "assisted";
-  youtubeAssistEnabled: boolean;
-  canEnableYouTubeAssist: boolean;
   currentUserId: number | null;
-  isSocketConnected: boolean;
-  isWatchRoomInviteModalOpen: boolean;
-  watchRoomInviteUserId: number | null;
   availableUsers: ContactType[];
   onCloseWatchRoom: () => void;
   onSyncTargetSelect: (targetUserId: number) => void;
@@ -57,25 +59,11 @@ interface YouTubeWatchRoomModalsProps {
 }
 
 export default function YouTubeWatchRoomModals({
-  messengerTheme,
-  youtubePreviewVideoId,
-  activeWatchRoom,
-  isWatchRoomSyncing,
   isYouTubePlayerUsable,
-  isYouTubeApiBlocked,
-  syncedToUserId,
   syncedToUserName,
   syncTargetMenuItems,
   watchRoomViewerItems,
-  watchRoomChatMessages,
-  watchRoomReactions,
-  youtubeAccessMode,
-  youtubeAssistEnabled,
-  canEnableYouTubeAssist,
   currentUserId,
-  isSocketConnected,
-  isWatchRoomInviteModalOpen,
-  watchRoomInviteUserId,
   availableUsers,
   onCloseWatchRoom,
   onSyncTargetSelect,
@@ -88,13 +76,35 @@ export default function YouTubeWatchRoomModals({
   onSendWatchRoomReaction,
   handleYouTubePlayerHostRef,
 }: YouTubeWatchRoomModalsProps) {
+  const messengerTheme = useMessengerTheme() as MessengerTheme;
+  const youtubePreviewVideoId = useYoutubePreviewVideoId();
+  const activeWatchRoom = useActiveWatchRoom();
+  const isWatchRoomSyncing = useIsWatchRoomSyncing();
+  const isYouTubeApiBlocked = useIsYouTubeApiBlocked();
+  const syncedToUserId = useSyncedToUserId();
+  const youtubeAccessMode = useYoutubeAccessMode();
+  const youtubeAssistEnabled = useYoutubeAssistEnabled();
+  const canEnableYouTubeAssist = useCanEnableYouTubeAssist();
+  const isSocketConnected = useIsSocketConnected();
+  const isWatchRoomInviteModalOpen = useIsWatchRoomInviteModalOpen();
+  const watchRoomInviteUserId = useWatchRoomInviteUserId();
+  const watchRoomChatMessagesByRoomId = useWatchRoomChatMessagesByRoomId();
+  const watchRoomReactionsByRoomId = useWatchRoomReactionsByRoomId();
+  const watchRoomChatMessages = React.useMemo<WatchRoomChatMessageType[]>(
+    () => (activeWatchRoom ? (watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? []) : []),
+    [activeWatchRoom, watchRoomChatMessagesByRoomId],
+  );
+  const watchRoomReactions = React.useMemo<WatchRoomReactionView[]>(
+    () => (activeWatchRoom ? (watchRoomReactionsByRoomId[activeWatchRoom.id] ?? []) : []),
+    [activeWatchRoom, watchRoomReactionsByRoomId],
+  );
+
   const reactionEmojiSet = React.useMemo(() => ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F525}", "\u{1F44F}"], []);
   const inviteableUsers = availableUsers.filter((user) => !activeWatchRoom?.viewer_user_ids.includes(user.id));
   const syncMenuItems = syncTargetMenuItems ?? [];
   const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
   const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
   const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
-  const [isAssistedIframeLoaded, setIsAssistedIframeLoaded] = React.useState(false);
   const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] = React.useState(false);
   const assistedIframeLoadedRef = React.useRef(false);
   const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
@@ -130,12 +140,10 @@ export default function YouTubeWatchRoomModals({
 
   React.useEffect(() => {
     if (youtubeAccessMode !== "assisted") {
-      setIsAssistedIframeLoaded(false);
       setIsAssistedIframeFallbackActive(false);
       assistedIframeLoadedRef.current = false;
       return;
     }
-    setIsAssistedIframeLoaded(false);
     setIsAssistedIframeFallbackActive(false);
     assistedIframeLoadedRef.current = false;
     const timeoutId = setTimeout(() => {
@@ -384,7 +392,6 @@ export default function YouTubeWatchRoomModals({
                   onLoad={() => {
                     if (youtubeAccessMode === "assisted") {
                       assistedIframeLoadedRef.current = true;
-                      setIsAssistedIframeLoaded(true);
                     }
                   }}
                   style={{

@@ -23,6 +23,11 @@ import {
 } from "@ant-design/icons";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import type { ChatMessageType } from "@/lib/types";
+import {
+  useIsSocketConnected,
+  useMessengerTheme,
+  useSelectedChat,
+} from "@/hooks/features/messenger/chats";
 import type { AttachmentPickerKind, MessengerTheme } from "../types";
 import { buildGeoShareUrl, resolveMessageAuthor, shortenText } from "../utils";
 import VoiceRecordButton from "./VoiceRecordButton";
@@ -31,28 +36,32 @@ const { Text } = Typography;
 const { TextArea } = Input;
 
 interface MessageComposerProps {
-  isSocketConnected: boolean;
-  messengerTheme: MessengerTheme;
   isAttachmentUploading: boolean;
   replyTarget: ChatMessageType | null;
-  selectedChatTitle: string | undefined;
   onCancelReply: () => void;
   onSendMessage: (text: string) => boolean;
   onSendAttachment: (file: File, kind: AttachmentPickerKind) => Promise<void>;
   onSendAttachmentBatch: (files: File[], caption: string) => Promise<void>;
 }
 
+type ResizableTextAreaRef = {
+  resizableTextArea?: {
+    textArea?: HTMLTextAreaElement;
+  };
+};
+
 export default function MessageComposer({
-  isSocketConnected,
-  messengerTheme,
   isAttachmentUploading,
   replyTarget,
-  selectedChatTitle,
   onCancelReply,
   onSendMessage,
   onSendAttachment,
   onSendAttachmentBatch,
 }: MessageComposerProps) {
+  const isSocketConnected = useIsSocketConnected();
+  const messengerTheme = useMessengerTheme() as MessengerTheme;
+  const selectedChat = useSelectedChat();
+  const selectedChatTitle = selectedChat?.title;
   const [draft, setDraft] = React.useState("");
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
   const [isMediaModalOpen, setIsMediaModalOpen] = React.useState(false);
@@ -65,7 +74,7 @@ export default function MessageComposer({
   >([]);
   const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
-  const textAreaRef = React.useRef<any>(null);
+  const textAreaRef = React.useRef<ResizableTextAreaRef | null>(null);
   const formatMenuRef = React.useRef<HTMLDivElement | null>(null);
   const voiceRecorderRef = React.useRef<MediaRecorder | null>(null);
   const voiceStreamRef = React.useRef<MediaStream | null>(null);
