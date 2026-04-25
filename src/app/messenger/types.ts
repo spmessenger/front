@@ -1,5 +1,6 @@
 import type {
   ChatMessageApiType,
+  LiveLocationShareType,
   WatchRoomChatMessageType,
   WatchRoomInviteType,
   WatchRoomType,
@@ -42,6 +43,17 @@ export type ChatSocketResponse =
       type: "message_deleted";
       chat_id: number;
       message_id: number;
+    }
+  | {
+      type: "live_location_updated";
+      share: LiveLocationShareType;
+    }
+  | {
+      type: "live_location_stopped";
+      chat_id: number;
+      user_id: number;
+      username: string;
+      reason: "stopped" | "expired" | "disconnected";
     }
   | {
       type: "error";

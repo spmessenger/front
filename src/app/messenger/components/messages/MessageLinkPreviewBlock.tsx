@@ -1,7 +1,8 @@
 import React from "react";
-import { Avatar, Image, Typography } from "antd";
+import { Image, Typography } from "antd";
 import { EnvironmentFilled, YoutubeFilled } from "@ant-design/icons";
 import { parseGeoShareUrl, shortenText } from "../../utils";
+import GeoLeafletMap from "./GeoLeafletMap";
 
 const { Text } = Typography;
 
@@ -16,6 +17,8 @@ type MessageLinkPreviewBlockProps = {
   youtubeVideoId: string | null;
   markerAvatarUrl?: string;
   markerInitial?: string;
+  markerName?: string;
+  sentAtIso: string;
 };
 
 export default function MessageLinkPreviewBlock({
@@ -29,12 +32,12 @@ export default function MessageLinkPreviewBlock({
   youtubeVideoId,
   markerAvatarUrl,
   markerInitial,
+  markerName,
+  sentAtIso,
 }: MessageLinkPreviewBlockProps) {
   const geoPoint = parseGeoShareUrl(messageUrl);
   if (geoPoint) {
     const { latitude, longitude, accuracyMeters } = geoPoint;
-    const delta = 0.006;
-    const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik`;
 
     return (
       <div
@@ -89,69 +92,18 @@ export default function MessageLinkPreviewBlock({
               : ""}
           </Text>
         </div>
-        <div
-          style={{
-            position: "relative",
-            width: "100%",
-            maxWidth: "420px",
-            height: "190px",
-            background: "var(--mess-shell-bg)",
-          }}
-        >
-          <iframe
-            title="Shared location map"
-            src={embedUrl}
-            loading="lazy"
-            style={{
-              display: "block",
-              width: "100%",
-              height: "100%",
-              border: 0,
-              background: "var(--mess-shell-bg)",
-              pointerEvents: "none",
-            }}
+        <div style={{ width: "100%", maxWidth: "420px" }}>
+          <GeoLeafletMap
+            latitude={latitude}
+            longitude={longitude}
+            markerName={markerName || "User"}
+            markerAvatarUrl={markerAvatarUrl}
+            markerInitial={markerInitial}
+            sentAtIso={sentAtIso}
+            height={190}
+            zoom={16}
+            interactive
           />
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -100%)",
-              pointerEvents: "none",
-              filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.35))",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <Avatar
-                size={42}
-                src={markerAvatarUrl}
-                icon={!markerAvatarUrl ? <EnvironmentFilled /> : undefined}
-                style={{
-                  border: "3px solid var(--mess-accent)",
-                  background: "var(--mess-own-bubble)",
-                  color: "var(--mess-text)",
-                }}
-              >
-                {markerInitial}
-              </Avatar>
-              <span
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: "7px solid transparent",
-                  borderRight: "7px solid transparent",
-                  borderTop: "10px solid var(--mess-accent)",
-                  marginTop: "-1px",
-                }}
-              />
-            </div>
-          </div>
         </div>
       </div>
     );

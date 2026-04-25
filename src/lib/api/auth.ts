@@ -9,12 +9,12 @@ import type {
 export const AUTH_USERNAME_STORAGE_KEY = "messenger.auth.username";
 
 export default class AuthApi {
-  static login(email: string, verificationCode: string) {
-    return axios.post("/api/login", { email, verification_code: verificationCode });
+  static login(username: string, password: string) {
+    return axios.post("/api/login", { username, password });
   }
 
-  static register(email: string, verificationCode: string) {
-    return axios.post("/api/register", { email, verification_code: verificationCode });
+  static register(username: string, password: string) {
+    return axios.post("/api/register", { username, password });
   }
 
   static getProfile() {
@@ -39,6 +39,7 @@ export default class AuthApi {
 
   static updateProfile(payload: {
     username?: string;
+    email?: string | null;
     avatar?: AvatarUploadPayload;
   }) {
     return axios.patch<ProfileType>("/api/profile", payload);

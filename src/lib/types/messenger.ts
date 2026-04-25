@@ -7,6 +7,7 @@ export interface ContactType {
 export interface ProfileType {
   id: number;
   username: string;
+  email?: string | null;
   avatar_url?: string;
   subscription_tier?: "free" | "premium";
   youtube_access_mode?: "direct" | "assisted";
@@ -195,6 +196,19 @@ export interface WatchRoomChatMessageType {
   username: string;
   content: string;
   created_at: number;
+}
+
+export interface LiveLocationShareType {
+  chat_id: number;
+  user_id: number;
+  username: string;
+  avatar_url?: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy_meters?: number | null;
+  started_at: number;
+  updated_at: number;
+  expires_at?: number | null;
 }
 
 export interface ParticipantType {

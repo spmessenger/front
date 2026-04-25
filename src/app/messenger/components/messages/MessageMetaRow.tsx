@@ -1,8 +1,10 @@
 import React from "react";
-import { Avatar, Button, Modal as AntdModal, Tooltip, Typography } from "antd";
-import { CheckOutlined, EnvironmentFilled, LoadingOutlined, YoutubeFilled } from "@ant-design/icons";
+import { Button, Dropdown, Modal as AntdModal, Tooltip, Typography } from "antd";
+import type { MenuProps } from "antd";
+import { CheckOutlined, EnvironmentFilled, LoadingOutlined, StopOutlined, YoutubeFilled } from "@ant-design/icons";
 import type { MessengerTheme } from "../../types";
 import { parseGeoShareUrl } from "../../utils";
+import GeoLeafletMap from "./GeoLeafletMap";
 
 const { Text } = Typography;
 
@@ -14,8 +16,14 @@ type MessageMetaRowProps = {
   geoShareUrl?: string | null;
   markerAvatarUrl?: string;
   markerInitial?: string;
+  markerName?: string;
   watcherCount?: number;
   messengerTheme: MessengerTheme;
+  isSocketConnected: boolean;
+  isLiveLocationSharing: boolean;
+  liveLocationRemainingLabel?: string | null;
+  onStartLiveLocationShare: (durationSeconds: number | null) => void;
+  onStopLiveLocationShare: () => void;
   onOpenYouTubeWatchRoom: (videoId: string) => void;
 };
 
@@ -27,20 +35,32 @@ export default function MessageMetaRow({
   geoShareUrl,
   markerAvatarUrl,
   markerInitial,
+  markerName,
   watcherCount,
   messengerTheme,
+  isSocketConnected,
+  isLiveLocationSharing,
+  liveLocationRemainingLabel,
+  onStartLiveLocationShare,
+  onStopLiveLocationShare,
   onOpenYouTubeWatchRoom,
 }: MessageMetaRowProps) {
   const [isGeoMapModalOpen, setIsGeoMapModalOpen] = React.useState(false);
   const geoPoint = parseGeoShareUrl(geoShareUrl ?? "");
-  const geoEmbedUrl = React.useMemo(() => {
-    if (!geoPoint) {
-      return null;
-    }
-    const delta = 0.006;
-    const { latitude, longitude } = geoPoint;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik`;
-  }, [geoPoint]);
+  const liveLocationMenuItems: MenuProps["items"] = [
+    {
+      key: "900",
+      label: "15 minutes",
+    },
+    {
+      key: "3600",
+      label: "1 hour",
+    },
+    {
+      key: "until_cancel",
+      label: "Until cancel",
+    },
+  ];
 
   return (
     <>
@@ -103,7 +123,7 @@ export default function MessageMetaRow({
             />
           </Tooltip>
         ) : null}
-        {!youtubeVideoId && geoEmbedUrl ? (
+        {!youtubeVideoId && geoPoint ? (
           <Tooltip
             title="Open map"
             classNames={{
@@ -142,12 +162,62 @@ export default function MessageMetaRow({
           </Text>
         ) : null}
       </div>
-      {geoEmbedUrl ? (
+      {geoPoint ? (
         <AntdModal
           open={isGeoMapModalOpen}
           onCancel={() => setIsGeoMapModalOpen(false)}
           footer={null}
-          title="Shared location"
+          title={(
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+              <span>Shared location</span>
+              {isLiveLocationSharing ? (
+                <Button
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onStopLiveLocationShare();
+                  }}
+                  disabled={!isSocketConnected}
+                >
+                  {liveLocationRemainingLabel ? `Stop (${liveLocationRemainingLabel})` : "Stop"}
+                </Button>
+              ) : (
+                <Dropdown
+                  trigger={["click"]}
+                  placement="bottomRight"
+                  menu={{
+                    items: liveLocationMenuItems,
+                    onClick: ({ key, domEvent }) => {
+                      domEvent.stopPropagation();
+                      if (key === "until_cancel") {
+                        onStartLiveLocationShare(null);
+                        return;
+                      }
+                      const durationSeconds = Number(key);
+                      if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+                        return;
+                      }
+                      onStartLiveLocationShare(durationSeconds);
+                    },
+                  }}
+                  disabled={!isSocketConnected}
+                >
+                  <Button
+                    size="small"
+                    icon={<EnvironmentFilled />}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                    disabled={!isSocketConnected}
+                  >
+                    Share live
+                  </Button>
+                </Dropdown>
+              )}
+            </div>
+          )}
           width="calc(100vw - 48px)"
           style={{ maxWidth: "calc(100vw - 48px)", top: 16 }}
           className={
@@ -157,69 +227,19 @@ export default function MessageMetaRow({
           }
           styles={{ body: { padding: 0, height: "calc(100vh - 150px)" } }}
         >
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              background: "var(--mess-shell-bg)",
-            }}
-          >
-            <iframe
-              title="Shared location fullscreen map"
-              src={geoEmbedUrl}
-              loading="lazy"
-              style={{
-                display: "block",
-                width: "100%",
-                height: "100%",
-                border: 0,
-                background: "var(--mess-shell-bg)",
-                pointerEvents: "none",
-              }}
+          {isGeoMapModalOpen ? (
+            <GeoLeafletMap
+              latitude={geoPoint.latitude}
+              longitude={geoPoint.longitude}
+              markerName={markerName || "User"}
+              markerAvatarUrl={markerAvatarUrl}
+              markerInitial={markerInitial}
+              sentAtIso={createdAt}
+              height="100%"
+              zoom={16}
+              interactive
             />
-            <div
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: "50%",
-                transform: "translate(-50%, -100%)",
-                pointerEvents: "none",
-                filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.35))",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-              >
-                <Avatar
-                  size={42}
-                  src={markerAvatarUrl}
-                  icon={!markerAvatarUrl ? <EnvironmentFilled /> : undefined}
-                  style={{
-                    border: "3px solid var(--mess-accent)",
-                    background: "var(--mess-own-bubble)",
-                    color: "var(--mess-text)",
-                  }}
-                >
-                  {markerInitial}
-                </Avatar>
-                <span
-                  style={{
-                    width: 0,
-                    height: 0,
-                    borderLeft: "7px solid transparent",
-                    borderRight: "7px solid transparent",
-                    borderTop: "10px solid var(--mess-accent)",
-                    marginTop: "-1px",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+          ) : null}
         </AntdModal>
       ) : null}
     </>

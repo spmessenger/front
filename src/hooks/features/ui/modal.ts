@@ -1,23 +1,15 @@
 import React from "react";
-import { useAtomValue, useSetAtom } from "jotai";
-import { modalAtom } from "@/lib/atoms/modal";
 import type { ModalAtom, ModalSetterProps } from "@/lib/types/atoms";
+import { useUiStore } from "@/lib/stores/ui";
 
 export function useModal(): ModalAtom {
-  return useAtomValue(modalAtom);
+  return useUiStore((state) => state.modal);
 }
 
 export function useModalSetter(): (props: ModalSetterProps) => void {
-  const setModal = useSetAtom(modalAtom);
+  const setModal = useUiStore((state) => state.setModal);
   return React.useCallback(
-    (props: ModalSetterProps) => {
-      if (props.clear) {
-        setModal({});
-        return;
-      }
-
-      setModal((prev) => ({ ...prev, ...props }));
-    },
+    (props: ModalSetterProps) => setModal(props),
     [setModal]
   );
 }

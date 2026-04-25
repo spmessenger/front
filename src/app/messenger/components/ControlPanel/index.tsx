@@ -148,6 +148,7 @@ function ModalManipulator({
   menuKey,
   onClose,
   username,
+  email,
   avatarUrl,
   subscriptionTier,
   messengerTheme,
@@ -156,11 +157,13 @@ function ModalManipulator({
   menuKey: number;
   onClose: () => void;
   username: string;
+  email?: string | null;
   avatarUrl?: string;
   subscriptionTier?: "free" | "premium";
   messengerTheme: MessengerTheme;
   onProfileUpdated: (profile: {
     username: string;
+    email?: string | null;
     avatar_url?: string;
     subscription_tier?: "free" | "premium";
   }) => void;
@@ -171,6 +174,7 @@ function ModalManipulator({
         <ProfileModal
           onClose={onClose}
           username={username}
+          email={email}
           avatarUrl={avatarUrl}
           subscriptionTier={subscriptionTier}
           messengerTheme={messengerTheme}
@@ -190,6 +194,7 @@ export default function ControlPanel({ messengerTheme }: { messengerTheme: Messe
   const [menuKey, setMenuKey] = React.useState<number>(-1);
   const [open, setOpen] = React.useState(false);
   const [username, setUsername] = React.useState("Username");
+  const [email, setEmail] = React.useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = React.useState<string | undefined>();
   const [subscriptionTier, setSubscriptionTier] = React.useState<"free" | "premium">("free");
 
@@ -203,6 +208,7 @@ export default function ControlPanel({ messengerTheme }: { messengerTheme: Messe
     AuthApi.getProfile()
       .then(({ data }) => {
         setUsername(data.username);
+        setEmail(data.email ?? null);
         setAvatarUrl(data.avatar_url);
         setSubscriptionTier(data.subscription_tier ?? "free");
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
@@ -237,11 +243,13 @@ export default function ControlPanel({ messengerTheme }: { messengerTheme: Messe
         menuKey={menuKey}
         onClose={closeManipulator}
         username={username}
+        email={email}
         avatarUrl={avatarUrl}
         subscriptionTier={subscriptionTier}
         messengerTheme={messengerTheme}
         onProfileUpdated={(profile) => {
           setUsername(profile.username);
+          setEmail(profile.email ?? null);
           setAvatarUrl(profile.avatar_url);
           setSubscriptionTier(profile.subscription_tier ?? "free");
         }}

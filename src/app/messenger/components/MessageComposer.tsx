@@ -12,12 +12,10 @@ import {
 } from "antd";
 import type { MenuProps } from "antd";
 import {
-  BoldOutlined,
   CloseOutlined,
   EnvironmentOutlined,
   FileImageOutlined,
   FileTextOutlined,
-  ItalicOutlined,
   LockFilled,
   PaperClipOutlined,
   SendOutlined,
@@ -68,6 +66,7 @@ export default function MessageComposer({
   const photoVideoInputRef = React.useRef<HTMLInputElement | null>(null);
   const documentInputRef = React.useRef<HTMLInputElement | null>(null);
   const textAreaRef = React.useRef<any>(null);
+  const formatMenuRef = React.useRef<HTMLDivElement | null>(null);
   const voiceRecorderRef = React.useRef<MediaRecorder | null>(null);
   const voiceStreamRef = React.useRef<MediaStream | null>(null);
   const voiceChunksRef = React.useRef<BlobPart[]>([]);
@@ -82,6 +81,12 @@ export default function MessageComposer({
     React.useState(false);
   const [voiceRecordingSeconds, setVoiceRecordingSeconds] = React.useState(0);
   const [isGeoSharing, setIsGeoSharing] = React.useState(false);
+  const [formatMenuState, setFormatMenuState] = React.useState<{
+    x: number;
+    y: number;
+    selectionStart: number;
+    selectionEnd: number;
+  } | null>(null);
   const shouldShowGeoHint = /\b(i\s*am\s*here|i'?m\s*here|im\s*here|я\s*(тут|здесь))\b/i.test(
     draft,
   );
@@ -141,20 +146,21 @@ export default function MessageComposer({
     return textAreaRef.current?.resizableTextArea?.textArea ?? null;
   }
 
-  function applyInlineFormat(wrapper: string) {
-    const textArea = getNativeTextArea();
+  function applyInlineFormatToSelectionRange(
+    wrapper: string,
+    selectionStart: number,
+    selectionEnd: number,
+  ) {
     const currentText = draft;
-    if (!textArea) {
-      setDraft((value) => `${value}${wrapper}${wrapper}`);
+    if (selectionEnd <= selectionStart) {
       return;
     }
 
-    const start = textArea.selectionStart ?? currentText.length;
-    const end = textArea.selectionEnd ?? currentText.length;
-    const selected = currentText.slice(start, end);
+    const selected = currentText.slice(selectionStart, selectionEnd);
     const wrapped = `${wrapper}${selected}${wrapper}`;
-    const next = `${currentText.slice(0, start)}${wrapped}${currentText.slice(end)}`;
+    const next = `${currentText.slice(0, selectionStart)}${wrapped}${currentText.slice(selectionEnd)}`;
     setDraft(next);
+    setFormatMenuState(null);
 
     requestAnimationFrame(() => {
       const node = getNativeTextArea();
@@ -162,12 +168,7 @@ export default function MessageComposer({
         return;
       }
       node.focus();
-      if (selected.length > 0) {
-        node.setSelectionRange(start, end + wrapper.length * 2);
-        return;
-      }
-      const caret = start + wrapper.length;
-      node.setSelectionRange(caret, caret);
+      node.setSelectionRange(selectionStart, selectionEnd + wrapper.length * 2);
     });
   }
 
@@ -194,6 +195,7 @@ export default function MessageComposer({
       documentInputRef.current?.click();
     }
   };
+
 
   function addMediaFiles(files: File[]) {
     const nextFiles = files.filter(
@@ -478,6 +480,42 @@ export default function MessageComposer({
   }, [endVoiceHoldRecording]);
 
   React.useEffect(() => {
+    if (!formatMenuState) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const menuElement = formatMenuRef.current;
+      if (menuElement && event.target instanceof Node && menuElement.contains(event.target)) {
+        return;
+      }
+      setFormatMenuState(null);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFormatMenuState(null);
+      }
+    };
+
+    const closeMenu = () => {
+      setFormatMenuState(null);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [formatMenuState]);
+
+  React.useEffect(() => {
     return () => {
       pendingMediaFilesRef.current.forEach((item) =>
         URL.revokeObjectURL(item.previewUrl),
@@ -626,11 +664,43 @@ export default function MessageComposer({
         <TextArea
           ref={textAreaRef}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (formatMenuState) {
+              setFormatMenuState(null);
+            }
+          }}
           onPressEnter={(event) => {
             if (!event.shiftKey) {
               event.preventDefault();
               handleSendClick();
+            }
+          }}
+          onContextMenu={(event) => {
+            const textArea = getNativeTextArea();
+            if (!textArea) {
+              return;
+            }
+
+            const selectionStart = textArea.selectionStart ?? 0;
+            const selectionEnd = textArea.selectionEnd ?? 0;
+            if (selectionEnd <= selectionStart) {
+              setFormatMenuState(null);
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            setFormatMenuState({
+              x: event.clientX,
+              y: event.clientY,
+              selectionStart,
+              selectionEnd,
+            });
+          }}
+          onClick={() => {
+            if (formatMenuState) {
+              setFormatMenuState(null);
             }
           }}
           placeholder="Type a message"
@@ -686,22 +756,6 @@ export default function MessageComposer({
         ) : null}
         <Button
           size="large"
-          icon={<BoldOutlined />}
-          aria-label="Bold"
-          title="Bold"
-          onClick={() => applyInlineFormat("**")}
-          disabled={!isSocketConnected || isVoiceRecording}
-        />
-        <Button
-          size="large"
-          icon={<ItalicOutlined />}
-          aria-label="Italic"
-          title="Italic"
-          onClick={() => applyInlineFormat("*")}
-          disabled={!isSocketConnected || isVoiceRecording}
-        />
-        <Button
-          size="large"
           icon={<SmileOutlined />}
           aria-label="Open emoji picker"
           title="Open emoji picker"
@@ -738,6 +792,49 @@ export default function MessageComposer({
             width="100%"
             height={360}
           />
+        </div>
+      ) : null}
+      {formatMenuState ? (
+        <div
+          ref={formatMenuRef}
+          style={{
+            position: "fixed",
+            left: `${Math.max(8, formatMenuState.x)}px`,
+            top: `${Math.max(8, formatMenuState.y)}px`,
+            zIndex: 1200,
+            display: "inline-flex",
+            gap: "6px",
+            padding: "6px",
+            borderRadius: "8px",
+            border: "1px solid var(--mess-soft-border)",
+            background: "var(--mess-shell-bg)",
+            boxShadow: "0 8px 22px rgba(0,0,0,0.22)",
+          }}
+        >
+          <Button
+            size="small"
+            onClick={() =>
+              applyInlineFormatToSelectionRange(
+                "**",
+                formatMenuState.selectionStart,
+                formatMenuState.selectionEnd,
+              )
+            }
+          >
+            Bold
+          </Button>
+          <Button
+            size="small"
+            onClick={() =>
+              applyInlineFormatToSelectionRange(
+                "*",
+                formatMenuState.selectionStart,
+                formatMenuState.selectionEnd,
+              )
+            }
+          >
+            Italic
+          </Button>
         </div>
       ) : null}
       <AntdModal

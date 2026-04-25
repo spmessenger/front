@@ -14,6 +14,7 @@ type UploadFile = Parameters<GetProp<UploadProps, "beforeUpload">>[0];
 
 type ProfileUpdated = {
   username: string;
+  email?: string | null;
   avatar_url?: string;
   subscription_tier?: "free" | "premium";
 };
@@ -21,6 +22,7 @@ type ProfileUpdated = {
 type ProfileModalProps = {
   onClose: () => void;
   username: string;
+  email?: string | null;
   avatarUrl?: string;
   subscriptionTier?: "free" | "premium";
   messengerTheme: MessengerTheme;
@@ -30,6 +32,7 @@ type ProfileModalProps = {
 export default function ProfileModal({
   onClose,
   username,
+  email,
   avatarUrl,
   subscriptionTier,
   messengerTheme,
@@ -37,6 +40,7 @@ export default function ProfileModal({
 }: ProfileModalProps) {
   const setModal = useModalSetter();
   const [draftUsername, setDraftUsername] = React.useState(username);
+  const [draftEmail, setDraftEmail] = React.useState(email ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [showUsernameError, setShowUsernameError] = React.useState(false);
   const avatarCrop = useAvatarCrop();
@@ -44,6 +48,10 @@ export default function ProfileModal({
   React.useEffect(() => {
     setDraftUsername(username);
   }, [username]);
+
+  React.useEffect(() => {
+    setDraftEmail(email ?? "");
+  }, [email]);
 
   React.useEffect(() => {
     avatarCrop.setAvatarPreview(avatarUrl);
@@ -96,11 +104,13 @@ export default function ProfileModal({
       try {
         const { data } = await AuthApi.updateProfile({
           username: normalizedUsername,
+          email: draftEmail.trim() ? draftEmail.trim() : undefined,
           avatar: avatarCrop.avatarPayload,
         });
         window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, data.username);
         onUpdated({
           username: data.username,
+          email: data.email,
           avatar_url: data.avatar_url,
           subscription_tier: data.subscription_tier,
         });
@@ -173,9 +183,16 @@ export default function ProfileModal({
               onPressEnter={() => void submitProfile()}
               disabled={submitting}
             />
+            <Input
+              value={draftEmail}
+              placeholder="Email (optional)"
+              onChange={(event) => setDraftEmail(event.target.value)}
+              onPressEnter={() => void submitProfile()}
+              disabled={submitting}
+            />
             <Flex align="center" gap={6} justify="center">
               <InfoCircleOutlined style={{ color: "rgba(63, 40, 49, 0.75)" }} />
-              <Text type="secondary">Update your username and avatar.</Text>
+              <Text type="secondary">Update username, optional email, and avatar.</Text>
             </Flex>
             <Flex align="center" justify="flex-start" gap={8} style={{ width: "100%" }}>
               <Text type="secondary">Tier:</Text>
@@ -222,6 +239,7 @@ export default function ProfileModal({
     avatarCrop.avatarPayload,
     avatarCrop.avatarPreview,
     draftUsername,
+    draftEmail,
     onClose,
     onUpdated,
     setModal,

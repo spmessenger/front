@@ -6,17 +6,15 @@ import {
   Dropdown,
   Image,
   Layout,
-  Progress,
-  Tooltip,
   Typography,
   message as antdMessage,
 } from "antd";
 import {
-  CheckOutlined,
+  EnvironmentOutlined,
   HomeFilled,
   InboxOutlined,
   LoadingOutlined,
-  YoutubeFilled,
+  StopOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Content, Header, Footer } from "antd/lib/layout/layout";
@@ -37,6 +35,7 @@ import ForwardedMessageBlock from "./components/messages/ForwardedMessageBlock";
 import MessageTextBlock from "./components/messages/MessageTextBlock";
 import MessageLinkPreviewBlock from "./components/messages/MessageLinkPreviewBlock";
 import MessageMetaRow from "./components/messages/MessageMetaRow";
+import LiveLocationsMap from "./components/messages/LiveLocationsMap";
 import { useLinkPreviews } from "./hooks/useLinkPreviews";
 import { useVoicePlayback } from "./hooks/useVoicePlayback";
 import {
@@ -50,7 +49,12 @@ import {
   MESSENGER_THEME_VARS,
   SCROLL_HIGHLIGHT_DURATION_MS,
 } from "./constants";
-import type { AttachmentPickerKind, ChatSocketResponse, MessengerTheme, YouTubePlayerLike } from "./types";
+import type {
+  AttachmentPickerKind,
+  ChatSocketResponse,
+  MessengerTheme,
+  YouTubePlayerLike,
+} from "./types";
 import { hasYouTubePlayerMethods } from "./types";
 import {
   createClientMessageId,
@@ -93,8 +97,8 @@ import type {
   ExpenseType,
   ExpenseOverviewType,
   ChatFolderType,
+  LiveLocationShareType,
   ChatMessageType,
-  ChatType,
   WatchRoomChatMessageType,
   WatchRoomType,
 } from "@/lib/types";
@@ -118,6 +122,7 @@ export default function Messenger() {
   const setSelectedChat = useSelectedChatSetter();
   const selectedChatId = selectedChat?.id ?? null;
   const selectedChatIdRef = React.useRef<number | null>(selectedChatId);
+  const currentUserIdRef = React.useRef<number | null>(null);
   const selectedMessages = useChatMessages(selectedChatId);
   const selectedMessagesById = React.useMemo(() => {
     const messagesById = new Map<number, ChatMessageType>();
@@ -128,129 +133,202 @@ export default function Messenger() {
   }, [selectedMessages]);
   const setChatMessages = useChatMessagesSetter();
   const [chatFolders, setChatFolders] = React.useState<ChatFolderType[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = React.useState<number>(ALL_CHATS_GROUP_ID);
+  const [selectedFolderId, setSelectedFolderId] =
+    React.useState<number>(ALL_CHATS_GROUP_ID);
   const [isMessagesLoading, setIsMessagesLoading] = React.useState(false);
-  const [isOlderMessagesLoading, setIsOlderMessagesLoading] = React.useState(false);
-  const [isAttachmentUploading, setIsAttachmentUploading] = React.useState(false);
+  const [isOlderMessagesLoading, setIsOlderMessagesLoading] =
+    React.useState(false);
+  const [isAttachmentUploading, setIsAttachmentUploading] =
+    React.useState(false);
   const [availableUsers, setAvailableUsers] = React.useState<ContactType[]>([]);
   const [isMessagesDragOver, setIsMessagesDragOver] = React.useState(false);
-  const [hasMoreMessagesByChat, setHasMoreMessagesByChat] = React.useState<Record<number, boolean>>({});
-  const [replyTarget, setReplyTarget] = React.useState<ChatMessageType | null>(null);
-  const [pendingScrollTargetMessageId, setPendingScrollTargetMessageId] = React.useState<number | null>(null);
-  const [highlightedMessageId, setHighlightedMessageId] = React.useState<number | null>(null);
+  const [hasMoreMessagesByChat, setHasMoreMessagesByChat] = React.useState<
+    Record<number, boolean>
+  >({});
+  const [replyTarget, setReplyTarget] = React.useState<ChatMessageType | null>(
+    null,
+  );
+  const [pendingScrollTargetMessageId, setPendingScrollTargetMessageId] =
+    React.useState<number | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<
+    number | null
+  >(null);
   const [isSocketConnected, setIsSocketConnected] = React.useState(false);
-  const [messengerTheme, setMessengerTheme] = React.useState<MessengerTheme>("retro");
+  const [messengerTheme, setMessengerTheme] =
+    React.useState<MessengerTheme>("retro");
   const [isChatsSyncing, setIsChatsSyncing] = React.useState(false);
   const [isChatGroupsSyncing, setIsChatGroupsSyncing] = React.useState(false);
   const [hasChatsSyncedOnce, setHasChatsSyncedOnce] = React.useState(false);
-  const [hasChatGroupsSyncedOnce, setHasChatGroupsSyncedOnce] = React.useState(false);
-  const [youtubePreviewVideoId, setYoutubePreviewVideoId] = React.useState<string | null>(null);
+  const [hasChatGroupsSyncedOnce, setHasChatGroupsSyncedOnce] =
+    React.useState(false);
+  const [youtubePreviewVideoId, setYoutubePreviewVideoId] = React.useState<
+    string | null
+  >(null);
   const [isYouTubeApiReady, setIsYouTubeApiReady] = React.useState(false);
   const [isYouTubeApiBlocked, setIsYouTubeApiBlocked] = React.useState(false);
   const [isYouTubePlayerReady, setIsYouTubePlayerReady] = React.useState(false);
-  const [syncedToUserId, setSyncedToUserId] = React.useState<number | null>(null);
+  const [syncedToUserId, setSyncedToUserId] = React.useState<number | null>(
+    null,
+  );
   const [isWatchRoomSyncing, setIsWatchRoomSyncing] = React.useState(false);
   const [currentUserId, setCurrentUserId] = React.useState<number | null>(null);
-  const [currentUsername, setCurrentUsername] = React.useState<string | null>(null);
-  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = React.useState<string | undefined>(undefined);
-  const [youtubeAccessMode, setYoutubeAccessMode] = React.useState<"direct" | "assisted">("direct");
+  const [currentUsername, setCurrentUsername] = React.useState<string | null>(
+    null,
+  );
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = React.useState<
+    string | undefined
+  >(undefined);
+  const [liveLocationNowMs, setLiveLocationNowMs] = React.useState(() =>
+    Date.now(),
+  );
+  const [liveLocationsByChatId, setLiveLocationsByChatId] = React.useState<
+    Record<number, Record<number, LiveLocationShareType>>
+  >({});
+  const [liveLocationStatusByChatId, setLiveLocationStatusByChatId] =
+    React.useState<
+      Record<number, { isActive: boolean; expiresAt: number | null }>
+    >({});
+  const [youtubeAccessMode, setYoutubeAccessMode] = React.useState<
+    "direct" | "assisted"
+  >("direct");
   const [youtubeAssistEnabled, setYoutubeAssistEnabled] = React.useState(false);
-  const [canEnableYouTubeAssist, setCanEnableYouTubeAssist] = React.useState(false);
-  const [activeWatchRoom, setActiveWatchRoom] = React.useState<WatchRoomType | null>(null);
-  const [watchRoomChatMessagesByRoomId, setWatchRoomChatMessagesByRoomId] = React.useState<
-    Record<string, WatchRoomChatMessageType[]>
+  const [canEnableYouTubeAssist, setCanEnableYouTubeAssist] =
+    React.useState(false);
+  const [activeWatchRoom, setActiveWatchRoom] =
+    React.useState<WatchRoomType | null>(null);
+  const [watchRoomChatMessagesByRoomId, setWatchRoomChatMessagesByRoomId] =
+    React.useState<Record<string, WatchRoomChatMessageType[]>>({});
+  const [watchRoomReactionsByRoomId, setWatchRoomReactionsByRoomId] =
+    React.useState<Record<string, WatchRoomReactionView[]>>({});
+  const [watchRoomPlaybackSeconds, setWatchRoomPlaybackSeconds] =
+    React.useState(0);
+  const [watchRoomsByKey, setWatchRoomsByKey] = React.useState<
+    Record<string, WatchRoomType>
   >({});
-  const [watchRoomReactionsByRoomId, setWatchRoomReactionsByRoomId] = React.useState<
-    Record<string, WatchRoomReactionView[]>
-  >({});
-  const [watchRoomPlaybackSeconds, setWatchRoomPlaybackSeconds] = React.useState(0);
-  const [watchRoomsByKey, setWatchRoomsByKey] = React.useState<Record<string, WatchRoomType>>({});
-  const [isWatchRoomInviteModalOpen, setIsWatchRoomInviteModalOpen] = React.useState(false);
-  const [watchRoomInviteUserId, setWatchRoomInviteUserId] = React.useState<number | null>(null);
+  const [isWatchRoomInviteModalOpen, setIsWatchRoomInviteModalOpen] =
+    React.useState(false);
+  const [watchRoomInviteUserId, setWatchRoomInviteUserId] = React.useState<
+    number | null
+  >(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = React.useState(false);
   const [isExpenseSubmitting, setIsExpenseSubmitting] = React.useState(false);
   const [isExpenseMarkingPaid, setIsExpenseMarkingPaid] = React.useState(false);
-  const [expenseParticipants, setExpenseParticipants] = React.useState<ContactType[]>([]);
-  const [expenseOverview, setExpenseOverview] = React.useState<ExpenseOverviewType | null>(null);
+  const [expenseParticipants, setExpenseParticipants] = React.useState<
+    ContactType[]
+  >([]);
+  const [expenseOverview, setExpenseOverview] =
+    React.useState<ExpenseOverviewType | null>(null);
   const [isExpensesViewOpen, setIsExpensesViewOpen] = React.useState(false);
-  const [isExpensesViewLoading, setIsExpensesViewLoading] = React.useState(false);
+  const [isExpensesViewLoading, setIsExpensesViewLoading] =
+    React.useState(false);
   const [expensesPanelWidth, setExpensesPanelWidth] = React.useState(360);
   const [chatExpenses, setChatExpenses] = React.useState<ExpenseType[]>([]);
-  const [expensePayments, setExpensePayments] = React.useState<ExpensePaymentType[]>([]);
+  const [expensePayments, setExpensePayments] = React.useState<
+    ExpensePaymentType[]
+  >([]);
   const unavailableWatchRoomKeysRef = React.useRef<Set<string>>(new Set());
-  const syncEnsureTimeoutsRef = React.useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const syncEnsureTimeoutsRef = React.useRef<
+    Array<ReturnType<typeof setTimeout>>
+  >([]);
   const syncedToUserIdRef = React.useRef<number | null>(null);
   const activeWatchRoomIdRef = React.useRef<string | null>(null);
   const activeWatchRoomRef = React.useRef<WatchRoomType | null>(null);
   const isSocketConnectedRef = React.useRef(false);
   const lastWatchRoomPlaybackSentAtRef = React.useRef(0);
   const suppressUnsyncUntilRef = React.useRef(0);
-  const [youTubePlayerHostElement, setYouTubePlayerHostElement] = React.useState<HTMLDivElement | null>(null);
+  const [youTubePlayerHostElement, setYouTubePlayerHostElement] =
+    React.useState<HTMLDivElement | null>(null);
   const youTubePlayerRef = React.useRef<YouTubePlayerLike | null>(null);
   const youTubeApiReadyRef = React.useRef(false);
   const socketRef = React.useRef<WebSocket | null>(null);
+  const geolocationWatchIdRef = React.useRef<number | null>(null);
+  const liveLocationIntervalRef = React.useRef<ReturnType<
+    typeof setInterval
+  > | null>(null);
+  const latestLiveCoordsRef = React.useRef<{
+    latitude: number;
+    longitude: number;
+    accuracy_meters?: number;
+  } | null>(null);
+  const activeLiveLocationChatIdRef = React.useRef<number | null>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const messageElementsRef = React.useRef<Map<number, HTMLDivElement>>(new Map());
-  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const jumpRetryTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageElementsRef = React.useRef<Map<number, HTMLDivElement>>(
+    new Map(),
+  );
+  const highlightTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const jumpRetryTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const olderLoadScrollRestoreRef = React.useRef<{
     chatId: number;
     previousScrollTop: number;
     previousScrollHeight: number;
   } | null>(null);
   const stickToBottomRef = React.useRef(true);
-  const pendingDeliveryTimeoutsRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
-  );
-  const attachmentRetryFilesRef = React.useRef<Map<number, { file: File; kind: AttachmentPickerKind }>>(
-    new Map(),
-  );
+  const pendingDeliveryTimeoutsRef = React.useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const attachmentRetryFilesRef = React.useRef<
+    Map<number, { file: File; kind: AttachmentPickerKind }>
+  >(new Map());
   const dragCounterRef = React.useRef(0);
   const chatsSyncRequestsRef = React.useRef(0);
   const chatGroupsSyncRequestsRef = React.useRef(0);
   const didHydrateCacheRef = React.useRef(false);
   const isResizingExpensesPanelRef = React.useRef(false);
   const isExpenseFeatureEnabled = ENABLE_EXPENSE_SPLIT_FEATURE;
-  const handleYouTubePlayerHostRef = React.useCallback((node: HTMLDivElement | null) => {
-    if (!node) {
-      return;
-    }
-    setYouTubePlayerHostElement(node);
-  }, []);
-  const isYouTubePlayerUsable = isYouTubePlayerReady && hasYouTubePlayerMethods(youTubePlayerRef.current);
-  const tryExtractWatchRoomReactionEmoji = React.useCallback((content: string) => {
-    if (!content.startsWith(WATCH_ROOM_REACTION_PREFIX)) {
-      return null;
-    }
-    const emoji = content.slice(WATCH_ROOM_REACTION_PREFIX.length).trim();
-    return emoji.length > 0 ? emoji : null;
-  }, []);
-  const appendWatchRoomReaction = React.useCallback((roomId: string, emoji: string) => {
-    const reactionId = `${roomId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const reaction: WatchRoomReactionView = {
-      id: reactionId,
-      emoji,
-      x_percent: 20 + Math.random() * 60,
-      y_percent: 65 + Math.random() * 20,
-    };
-    setWatchRoomReactionsByRoomId((current) => ({
-      ...current,
-      [roomId]: [...(current[roomId] ?? []), reaction],
-    }));
-    setTimeout(() => {
-      setWatchRoomReactionsByRoomId((current) => {
-        const existing = current[roomId] ?? [];
-        const next = existing.filter((item) => item.id !== reactionId);
-        if (next.length === existing.length) {
-          return current;
-        }
-        return {
-          ...current,
-          [roomId]: next,
-        };
-      });
-    }, 1700);
-  }, []);
+  const handleYouTubePlayerHostRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) {
+        return;
+      }
+      setYouTubePlayerHostElement(node);
+    },
+    [],
+  );
+  const isYouTubePlayerUsable =
+    isYouTubePlayerReady && hasYouTubePlayerMethods(youTubePlayerRef.current);
+  const tryExtractWatchRoomReactionEmoji = React.useCallback(
+    (content: string) => {
+      if (!content.startsWith(WATCH_ROOM_REACTION_PREFIX)) {
+        return null;
+      }
+      const emoji = content.slice(WATCH_ROOM_REACTION_PREFIX.length).trim();
+      return emoji.length > 0 ? emoji : null;
+    },
+    [],
+  );
+  const appendWatchRoomReaction = React.useCallback(
+    (roomId: string, emoji: string) => {
+      const reactionId = `${roomId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const reaction: WatchRoomReactionView = {
+        id: reactionId,
+        emoji,
+        x_percent: 20 + Math.random() * 60,
+        y_percent: 65 + Math.random() * 20,
+      };
+      setWatchRoomReactionsByRoomId((current) => ({
+        ...current,
+        [roomId]: [...(current[roomId] ?? []), reaction],
+      }));
+      setTimeout(() => {
+        setWatchRoomReactionsByRoomId((current) => {
+          const existing = current[roomId] ?? [];
+          const next = existing.filter((item) => item.id !== reactionId);
+          if (next.length === existing.length) {
+            return current;
+          }
+          return {
+            ...current,
+            [roomId]: next,
+          };
+        });
+      }, 1700);
+    },
+    [],
+  );
   const clampExpensesPanelWidth = React.useCallback((width: number) => {
     if (typeof window === "undefined") {
       return Math.max(280, Math.min(560, Math.round(width)));
@@ -259,26 +337,41 @@ export default function Messenger() {
     return Math.max(280, Math.min(maxWidth, Math.round(width)));
   }, []);
   const clearSyncEnsureTimeouts = React.useCallback(() => {
-    syncEnsureTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+    syncEnsureTimeoutsRef.current.forEach((timeoutId) =>
+      clearTimeout(timeoutId),
+    );
     syncEnsureTimeoutsRef.current = [];
   }, []);
   const resolveTargetPlaybackSeconds = React.useCallback(
-    (targetState: { current_time_seconds: number; is_playing: boolean; updated_at: number }) => {
+    (targetState: {
+      current_time_seconds: number;
+      is_playing: boolean;
+      updated_at: number;
+    }) => {
       const nowSeconds = Date.now() / 1000;
       const transportLeadSeconds = 0.3;
       return targetState.is_playing
-        ? targetState.current_time_seconds + Math.max(0, nowSeconds - targetState.updated_at) + transportLeadSeconds
+        ? targetState.current_time_seconds +
+            Math.max(0, nowSeconds - targetState.updated_at) +
+            transportLeadSeconds
         : targetState.current_time_seconds;
     },
     [],
   );
   const applyTargetSyncStateToPlayer = React.useCallback(
-    (targetState: { current_time_seconds: number; is_playing: boolean; updated_at: number }) => {
+    (targetState: {
+      current_time_seconds: number;
+      is_playing: boolean;
+      updated_at: number;
+    }) => {
       const player = youTubePlayerRef.current;
       if (!hasYouTubePlayerMethods(player)) {
         return false;
       }
-      const targetSeconds = Math.max(0, resolveTargetPlaybackSeconds(targetState));
+      const targetSeconds = Math.max(
+        0,
+        resolveTargetPlaybackSeconds(targetState),
+      );
       suppressUnsyncUntilRef.current = Date.now() + 1200;
       player.seekTo(targetSeconds, true);
       if (targetState.is_playing) {
@@ -290,36 +383,47 @@ export default function Messenger() {
     },
     [resolveTargetPlaybackSeconds],
   );
-  const sendWatchRoomPlaybackUpdate = React.useCallback((force: boolean = false) => {
-    const room = activeWatchRoomRef.current;
-    const socket = socketRef.current;
-    const player = youTubePlayerRef.current;
-    if (!room || !hasYouTubePlayerMethods(player)) {
-      return;
-    }
-    if (!isSocketConnectedRef.current || !socket || socket.readyState !== WebSocket.OPEN) {
-      return;
-    }
+  const sendWatchRoomPlaybackUpdate = React.useCallback(
+    (force: boolean = false) => {
+      const room = activeWatchRoomRef.current;
+      const socket = socketRef.current;
+      const player = youTubePlayerRef.current;
+      if (!room || !hasYouTubePlayerMethods(player)) {
+        return;
+      }
+      if (
+        !isSocketConnectedRef.current ||
+        !socket ||
+        socket.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
 
-    const nowMs = Date.now();
-    const minIntervalMs = 350;
-    if (!force && nowMs - lastWatchRoomPlaybackSentAtRef.current < minIntervalMs) {
-      return;
-    }
+      const nowMs = Date.now();
+      const minIntervalMs = 350;
+      if (
+        !force &&
+        nowMs - lastWatchRoomPlaybackSentAtRef.current < minIntervalMs
+      ) {
+        return;
+      }
 
-    const currentTime = player.getCurrentTime();
-    const isPlaying = player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
-    socket.send(
-      JSON.stringify({
-        action: "watch_room_playback",
-        chat_id: room.chat_id,
-        room_id: room.id,
-        current_time_seconds: currentTime,
-        is_playing: isPlaying,
-      }),
-    );
-    lastWatchRoomPlaybackSentAtRef.current = nowMs;
-  }, []);
+      const currentTime = player.getCurrentTime();
+      const isPlaying =
+        player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+      socket.send(
+        JSON.stringify({
+          action: "watch_room_playback",
+          chat_id: room.chat_id,
+          room_id: room.id,
+          current_time_seconds: currentTime,
+          is_playing: isPlaying,
+        }),
+      );
+      lastWatchRoomPlaybackSentAtRef.current = nowMs;
+    },
+    [],
+  );
   const refreshChats = React.useCallback(async () => {
     chatsSyncRequestsRef.current += 1;
     setIsChatsSyncing(true);
@@ -329,7 +433,10 @@ export default function Messenger() {
       setChats(sortChatsByRules(res.data));
       setHasChatsSyncedOnce(true);
     } finally {
-      chatsSyncRequestsRef.current = Math.max(0, chatsSyncRequestsRef.current - 1);
+      chatsSyncRequestsRef.current = Math.max(
+        0,
+        chatsSyncRequestsRef.current - 1,
+      );
       if (chatsSyncRequestsRef.current === 0) {
         setIsChatsSyncing(false);
       }
@@ -346,69 +453,78 @@ export default function Messenger() {
     } catch {
       antdMessage.error("Failed to load chat groups.");
     } finally {
-      chatGroupsSyncRequestsRef.current = Math.max(0, chatGroupsSyncRequestsRef.current - 1);
+      chatGroupsSyncRequestsRef.current = Math.max(
+        0,
+        chatGroupsSyncRequestsRef.current - 1,
+      );
       if (chatGroupsSyncRequestsRef.current === 0) {
         setIsChatGroupsSyncing(false);
       }
     }
   }, []);
 
-  const applyDeletedMessageLocally = React.useCallback((chatId: number, messageId: number) => {
-    setChatMessages((current) => {
-      const existingMessages = current[chatId] ?? [];
-      const nextMessages = existingMessages.filter((message) => message.id !== messageId);
-      if (nextMessages.length === existingMessages.length) {
-        return current;
-      }
+  const applyDeletedMessageLocally = React.useCallback(
+    (chatId: number, messageId: number) => {
+      setChatMessages((current) => {
+        const existingMessages = current[chatId] ?? [];
+        const nextMessages = existingMessages.filter(
+          (message) => message.id !== messageId,
+        );
+        if (nextMessages.length === existingMessages.length) {
+          return current;
+        }
 
-      setChats((currentChats) =>
-        sortChatsByRules(
-          currentChats.map((chat) => {
-            if (chat.id !== chatId) {
-              return chat;
-            }
-            const lastMessage = nextMessages[nextMessages.length - 1];
-            return {
-              ...chat,
-              last_message: lastMessage ? getChatPreviewText(lastMessage) : undefined,
-              last_message_at: lastMessage?.created_at,
-            };
-          }),
-        ),
-      );
+        setChats((currentChats) =>
+          sortChatsByRules(
+            currentChats.map((chat) => {
+              if (chat.id !== chatId) {
+                return chat;
+              }
+              const lastMessage = nextMessages[nextMessages.length - 1];
+              return {
+                ...chat,
+                last_message: lastMessage
+                  ? getChatPreviewText(lastMessage)
+                  : undefined,
+                last_message_at: lastMessage?.created_at,
+              };
+            }),
+          ),
+        );
 
-      return {
-        ...current,
-        [chatId]: nextMessages,
-      };
-    });
-  }, [setChatMessages, setChats]);
+        return {
+          ...current,
+          [chatId]: nextMessages,
+        };
+      });
+    },
+    [setChatMessages, setChats],
+  );
   const chatsForFolders = React.useMemo(
     () => chats.filter((chat) => chat.type !== "private"),
     [chats],
   );
   const groupsForUi = React.useMemo(
-    () =>
-      [
-        {
-          id: ALL_CHATS_GROUP_ID,
-          title: ALL_CHATS_GROUP_TITLE,
-          unread_messages_count: chats.reduce(
-            (sum, chat) => sum + (chat.unread_messages_count ?? 0),
-            0,
-          ),
-        },
-        ...chatFolders.map((folder) => ({
-          id: folder.id,
-          title: folder.title,
-          unread_messages_count: chats.reduce((sum, chat) => {
-            if (chat.type === "private" || !folder.chat_ids.includes(chat.id)) {
-              return sum;
-            }
-            return sum + (chat.unread_messages_count ?? 0);
-          }, 0),
-        })),
-      ],
+    () => [
+      {
+        id: ALL_CHATS_GROUP_ID,
+        title: ALL_CHATS_GROUP_TITLE,
+        unread_messages_count: chats.reduce(
+          (sum, chat) => sum + (chat.unread_messages_count ?? 0),
+          0,
+        ),
+      },
+      ...chatFolders.map((folder) => ({
+        id: folder.id,
+        title: folder.title,
+        unread_messages_count: chats.reduce((sum, chat) => {
+          if (chat.type === "private" || !folder.chat_ids.includes(chat.id)) {
+            return sum;
+          }
+          return sum + (chat.unread_messages_count ?? 0);
+        }, 0),
+      })),
+    ],
     [chatFolders, chats],
   );
   const visibleChats = React.useMemo(() => {
@@ -416,13 +532,16 @@ export default function Messenger() {
       return sortChatsByRules(chats);
     }
 
-    const selectedFolder = chatFolders.find((folder) => folder.id === selectedFolderId);
+    const selectedFolder = chatFolders.find(
+      (folder) => folder.id === selectedFolderId,
+    );
     if (!selectedFolder) {
       return sortChatsByRules(chats);
     }
 
     const chatsInFolder = chats.filter(
-      (chat) => chat.type !== "private" && selectedFolder.chat_ids.includes(chat.id),
+      (chat) =>
+        chat.type !== "private" && selectedFolder.chat_ids.includes(chat.id),
     );
 
     return sortChatsByRules(chatsInFolder);
@@ -431,6 +550,65 @@ export default function Messenger() {
   const messengerThemeVars = React.useMemo(
     () => MESSENGER_THEME_VARS[messengerTheme],
     [messengerTheme],
+  );
+  const activeLiveLocationsForSelectedChat = React.useMemo(() => {
+    if (selectedChatId === null) {
+      return [] as LiveLocationShareType[];
+    }
+    return Object.values(liveLocationsByChatId[selectedChatId] ?? {}).sort(
+      (left, right) => left.user_id - right.user_id,
+    );
+  }, [liveLocationsByChatId, selectedChatId]);
+  const selectedChatLiveStatus =
+    selectedChatId === null
+      ? undefined
+      : liveLocationStatusByChatId[selectedChatId];
+  const selectedChatLiveRemainingSeconds = React.useMemo(() => {
+    if (!selectedChatLiveStatus?.isActive) {
+      return null;
+    }
+    if (selectedChatLiveStatus.expiresAt === null) {
+      return null;
+    }
+    return Math.max(
+      0,
+      Math.floor(selectedChatLiveStatus.expiresAt - liveLocationNowMs / 1000),
+    );
+  }, [liveLocationNowMs, selectedChatLiveStatus]);
+  const selectedChatLiveRemainingLabel = React.useMemo(() => {
+    if (!selectedChatLiveStatus?.isActive) {
+      return null;
+    }
+    if (selectedChatLiveRemainingSeconds === null) {
+      return "Live";
+    }
+    if (selectedChatLiveRemainingSeconds <= 0) {
+      return "Ending...";
+    }
+    const hours = Math.floor(selectedChatLiveRemainingSeconds / 3600);
+    const minutes = Math.floor((selectedChatLiveRemainingSeconds % 3600) / 60);
+    const seconds = selectedChatLiveRemainingSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }, [selectedChatLiveRemainingSeconds, selectedChatLiveStatus]);
+  const liveLocationMenuItems = React.useMemo<MenuProps["items"]>(
+    () => [
+      {
+        key: "900",
+        label: "15 minutes",
+      },
+      {
+        key: "3600",
+        label: "1 hour",
+      },
+      {
+        key: "until_cancel",
+        label: "Until cancel",
+      },
+    ],
+    [],
   );
 
   const closeModal = React.useCallback(() => {
@@ -445,6 +623,19 @@ export default function Messenger() {
     registerVoiceAudioElement,
     getVoiceAudioHandlers,
   } = useVoicePlayback(selectedChatId);
+
+  React.useEffect(() => {
+    if (
+      !selectedChatLiveStatus?.isActive ||
+      selectedChatLiveStatus.expiresAt === null
+    ) {
+      return;
+    }
+    const timerId = setInterval(() => {
+      setLiveLocationNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timerId);
+  }, [selectedChatLiveStatus]);
 
   React.useEffect(() => {
     void AuthApi.getProfile()
@@ -469,12 +660,13 @@ export default function Messenger() {
   }, []);
 
   const refreshExpensesViewData = React.useCallback(async (chatId: number) => {
-    const [expensesRes, paymentsRes, overviewRes, participantsRes] = await Promise.all([
-      MessengerApi.getChatExpenses(chatId),
-      MessengerApi.getChatExpensePayments(chatId),
-      MessengerApi.getChatExpenseOverview(chatId),
-      MessengerApi.getChatParticipants(chatId),
-    ]);
+    const [expensesRes, paymentsRes, overviewRes, participantsRes] =
+      await Promise.all([
+        MessengerApi.getChatExpenses(chatId),
+        MessengerApi.getChatExpensePayments(chatId),
+        MessengerApi.getChatExpenseOverview(chatId),
+        MessengerApi.getChatParticipants(chatId),
+      ]);
     setChatExpenses(expensesRes.data);
     setExpensePayments(paymentsRes.data);
     setExpenseOverview(overviewRes.data);
@@ -503,7 +695,9 @@ export default function Messenger() {
       if (!isResizingExpensesPanelRef.current) {
         return;
       }
-      const nextWidth = clampExpensesPanelWidth(window.innerWidth - event.clientX);
+      const nextWidth = clampExpensesPanelWidth(
+        window.innerWidth - event.clientX,
+      );
       setExpensesPanelWidth(nextWidth);
     };
     const handleMouseUp = () => {
@@ -530,7 +724,8 @@ export default function Messenger() {
     return activeWatchRoom.viewer_user_ids.map((userId) => {
       const knownUser = availableUsers.find((user) => user.id === userId);
       const isCurrentUser = currentUserId === userId;
-      const username = knownUser?.username ??
+      const username =
+        knownUser?.username ??
         (isCurrentUser && currentUsername ? currentUsername : `User ${userId}`);
       return {
         userId,
@@ -546,15 +741,23 @@ export default function Messenger() {
   );
 
   const syncedToUserName = React.useMemo(
-    () => watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)?.username ?? null,
+    () =>
+      watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)
+        ?.username ?? null,
     [watchRoomViewerItems, syncedToUserId],
   );
   const activeWatchRoomChatMessages = React.useMemo(
-    () => (activeWatchRoom ? watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? [] : []),
+    () =>
+      activeWatchRoom
+        ? (watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? [])
+        : [],
     [activeWatchRoom, watchRoomChatMessagesByRoomId],
   );
   const activeWatchRoomReactions = React.useMemo(
-    () => (activeWatchRoom ? watchRoomReactionsByRoomId[activeWatchRoom.id] ?? [] : []),
+    () =>
+      activeWatchRoom
+        ? (watchRoomReactionsByRoomId[activeWatchRoom.id] ?? [])
+        : [],
     [activeWatchRoom, watchRoomReactionsByRoomId],
   );
   const activeWatchRoomYouTubeAccessMode = React.useMemo(
@@ -581,7 +784,9 @@ export default function Messenger() {
     const roomId = activeWatchRoom.id;
     void MessengerApi.getWatchRoomMessages(roomId, 120)
       .then(({ data }) => {
-        const filteredMessages = data.filter((message) => !tryExtractWatchRoomReactionEmoji(message.content));
+        const filteredMessages = data.filter(
+          (message) => !tryExtractWatchRoomReactionEmoji(message.content),
+        );
         setWatchRoomChatMessagesByRoomId((current) => ({
           ...current,
           [roomId]: filteredMessages,
@@ -636,7 +841,10 @@ export default function Messenger() {
           continue;
         }
         try {
-          const { data } = await MessengerApi.getWatchRoomByChat(selectedChatId, youtubeId);
+          const { data } = await MessengerApi.getWatchRoomByChat(
+            selectedChatId,
+            youtubeId,
+          );
           unavailableWatchRoomKeysRef.current.delete(roomKey);
           setWatchRoomsByKey((current) => ({
             ...current,
@@ -682,7 +890,12 @@ export default function Messenger() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeWatchRoom?.id, activeWatchRoom?.sync_revision, activeWatchRoom?.sync_current_time_seconds, activeWatchRoom?.sync_is_playing]);
+  }, [
+    activeWatchRoom?.id,
+    activeWatchRoom?.sync_revision,
+    activeWatchRoom?.sync_current_time_seconds,
+    activeWatchRoom?.sync_is_playing,
+  ]);
 
   const handleOpenGroupSettings = React.useCallback(() => {
     setModal({
@@ -705,7 +918,9 @@ export default function Messenger() {
                     return currentSelectedFolderId;
                   }
 
-                  return nextGroups.some((group) => group.id === currentSelectedFolderId)
+                  return nextGroups.some(
+                    (group) => group.id === currentSelectedFolderId,
+                  )
                     ? currentSelectedFolderId
                     : ALL_CHATS_GROUP_ID;
                 });
@@ -725,7 +940,9 @@ export default function Messenger() {
   }, []);
 
   React.useEffect(() => {
-    const storedTheme = window.localStorage.getItem(MESSENGER_THEME_STORAGE_KEY);
+    const storedTheme = window.localStorage.getItem(
+      MESSENGER_THEME_STORAGE_KEY,
+    );
     if (storedTheme === "retro" || storedTheme === "mono") {
       setMessengerTheme(storedTheme);
     }
@@ -786,7 +1003,9 @@ export default function Messenger() {
     setChatFolders((currentFolders) =>
       currentFolders.map((folder) => ({
         ...folder,
-        chat_ids: folder.chat_ids.filter((chatId) => allowedChatIds.has(chatId)),
+        chat_ids: folder.chat_ids.filter((chatId) =>
+          allowedChatIds.has(chatId),
+        ),
       })),
     );
   }, [chatsForFolders, hasChatsSyncedOnce, hasChatGroupsSyncedOnce]);
@@ -794,6 +1013,10 @@ export default function Messenger() {
   React.useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
   }, [selectedChatId]);
+
+  React.useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -934,7 +1157,9 @@ export default function Messenger() {
         onReady: (event) => {
           const playerInstance = hasYouTubePlayerMethods(event.target)
             ? event.target
-            : (hasYouTubePlayerMethods(createdPlayer) ? createdPlayer : null);
+            : hasYouTubePlayerMethods(createdPlayer)
+              ? createdPlayer
+              : null;
           if (!playerInstance) {
             setIsYouTubePlayerReady(false);
             setIsYouTubeApiBlocked(true);
@@ -1019,15 +1244,13 @@ export default function Messenger() {
   }, [isYouTubePlayerUsable, syncedToUserId]);
 
   React.useEffect(() => {
-    if (
-      !activeWatchRoom ||
-      !isYouTubePlayerUsable ||
-      syncedToUserId === null
-    ) {
+    if (!activeWatchRoom || !isYouTubePlayerUsable || syncedToUserId === null) {
       return;
     }
 
-    const targetState = getViewerSyncStates(activeWatchRoom).find((state) => state.user_id === syncedToUserId);
+    const targetState = getViewerSyncStates(activeWatchRoom).find(
+      (state) => state.user_id === syncedToUserId,
+    );
     if (!targetState) {
       setSyncedToUserId(null);
       return;
@@ -1041,7 +1264,8 @@ export default function Messenger() {
     const expectedSeconds = resolveTargetPlaybackSeconds(targetState);
     const localSeconds = player.getCurrentTime();
     const driftSeconds = Math.abs(localSeconds - expectedSeconds);
-    const localIsPlaying = player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+    const localIsPlaying =
+      player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
     const isPlaybackStateMismatched = localIsPlaying !== targetState.is_playing;
     if (isPlaybackStateMismatched || driftSeconds > 0.75) {
       void applyTargetSyncStateToPlayer(targetState);
@@ -1055,11 +1279,7 @@ export default function Messenger() {
   ]);
 
   React.useEffect(() => {
-    if (
-      !activeWatchRoom ||
-      !isYouTubePlayerUsable ||
-      syncedToUserId === null
-    ) {
+    if (!activeWatchRoom || !isYouTubePlayerUsable || syncedToUserId === null) {
       return;
     }
 
@@ -1069,7 +1289,9 @@ export default function Messenger() {
         return;
       }
 
-      const targetState = getViewerSyncStates(activeWatchRoom).find((state) => state.user_id === syncedToUserId);
+      const targetState = getViewerSyncStates(activeWatchRoom).find(
+        (state) => state.user_id === syncedToUserId,
+      );
       if (!targetState) {
         setSyncedToUserId(null);
         return;
@@ -1085,13 +1307,22 @@ export default function Messenger() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeWatchRoom, isYouTubePlayerUsable, resolveTargetPlaybackSeconds, syncedToUserId]);
+  }, [
+    activeWatchRoom,
+    isYouTubePlayerUsable,
+    resolveTargetPlaybackSeconds,
+    syncedToUserId,
+  ]);
 
   React.useEffect(() => {
     if (!activeWatchRoom || !isYouTubePlayerUsable) {
       return;
     }
-    if (!isSocketConnected || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+    if (
+      !isSocketConnected ||
+      !socketRef.current ||
+      socketRef.current.readyState !== WebSocket.OPEN
+    ) {
       return;
     }
 
@@ -1130,6 +1361,18 @@ export default function Messenger() {
     socket.onclose = () => {
       setIsSocketConnected(false);
       setIsMessagesLoading(false);
+      stopLiveLocationTrackingResources();
+      const activeChatId = activeLiveLocationChatIdRef.current;
+      if (activeChatId !== null) {
+        setLiveLocationStatusByChatId((current) => ({
+          ...current,
+          [activeChatId]: {
+            isActive: false,
+            expiresAt: null,
+          },
+        }));
+        activeLiveLocationChatIdRef.current = null;
+      }
     };
 
     socket.onerror = () => {
@@ -1151,9 +1394,9 @@ export default function Messenger() {
           ...current,
           [watchRoomMapKey(room.chat_id, room.youtube_video_id)]: room,
         }));
-        setActiveWatchRoom((current) => (
-          current && current.id === room.id ? room : current
-        ));
+        setActiveWatchRoom((current) =>
+          current && current.id === room.id ? room : current,
+        );
         return;
       }
 
@@ -1165,9 +1408,17 @@ export default function Messenger() {
           onCancel: closeModal,
           footer: null,
           content: (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            >
               <Text>{`${invite.from_username} invited you to watch together.`}</Text>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                }}
+              >
                 <Button
                   onClick={() => {
                     void MessengerApi.declineWatchRoomInvite(invite.id);
@@ -1179,14 +1430,19 @@ export default function Messenger() {
                 <Button
                   type="primary"
                   onClick={() => {
-                    void MessengerApi.acceptWatchRoomInvite(invite.id).then(({ data }) => {
-                      setActiveWatchRoom(data);
-                      setYoutubePreviewVideoId(data.youtube_video_id);
-                      setWatchRoomsByKey((current) => ({
-                        ...current,
-                        [watchRoomMapKey(data.chat_id, data.youtube_video_id)]: data,
-                      }));
-                    });
+                    void MessengerApi.acceptWatchRoomInvite(invite.id).then(
+                      ({ data }) => {
+                        setActiveWatchRoom(data);
+                        setYoutubePreviewVideoId(data.youtube_video_id);
+                        setWatchRoomsByKey((current) => ({
+                          ...current,
+                          [watchRoomMapKey(
+                            data.chat_id,
+                            data.youtube_video_id,
+                          )]: data,
+                        }));
+                      },
+                    );
                     closeModal();
                   }}
                 >
@@ -1201,14 +1457,20 @@ export default function Messenger() {
 
       if (payload.type === "watch_room_chat_message") {
         const nextRoomMessage = payload.message;
-        const reactionEmoji = tryExtractWatchRoomReactionEmoji(nextRoomMessage.content);
+        const reactionEmoji = tryExtractWatchRoomReactionEmoji(
+          nextRoomMessage.content,
+        );
         if (reactionEmoji) {
           appendWatchRoomReaction(nextRoomMessage.room_id, reactionEmoji);
           return;
         }
         setWatchRoomChatMessagesByRoomId((current) => {
           const existingMessages = current[nextRoomMessage.room_id] ?? [];
-          if (existingMessages.some((message) => message.id === nextRoomMessage.id)) {
+          if (
+            existingMessages.some(
+              (message) => message.id === nextRoomMessage.id,
+            )
+          ) {
             return current;
           }
           return {
@@ -1219,6 +1481,68 @@ export default function Messenger() {
         return;
       }
 
+      if (payload.type === "live_location_updated") {
+        const nextShare = payload.share;
+        setLiveLocationsByChatId((current) => ({
+          ...current,
+          [nextShare.chat_id]: {
+            ...(current[nextShare.chat_id] ?? {}),
+            [nextShare.user_id]: nextShare,
+          },
+        }));
+        if (
+          currentUserIdRef.current !== null &&
+          nextShare.user_id === currentUserIdRef.current
+        ) {
+          activeLiveLocationChatIdRef.current = nextShare.chat_id;
+          setLiveLocationStatusByChatId((current) => ({
+            ...current,
+            [nextShare.chat_id]: {
+              isActive: true,
+              expiresAt: nextShare.expires_at ?? null,
+            },
+          }));
+        }
+        return;
+      }
+
+      if (payload.type === "live_location_stopped") {
+        setLiveLocationsByChatId((current) => {
+          const existingChatShares = current[payload.chat_id] ?? {};
+          if (!existingChatShares[payload.user_id]) {
+            return current;
+          }
+          const nextChatShares = { ...existingChatShares };
+          delete nextChatShares[payload.user_id];
+          if (Object.keys(nextChatShares).length === 0) {
+            const next = { ...current };
+            delete next[payload.chat_id];
+            return next;
+          }
+          return {
+            ...current,
+            [payload.chat_id]: nextChatShares,
+          };
+        });
+        if (
+          currentUserIdRef.current !== null &&
+          payload.user_id === currentUserIdRef.current
+        ) {
+          if (activeLiveLocationChatIdRef.current === payload.chat_id) {
+            stopLiveLocationTrackingResources();
+            activeLiveLocationChatIdRef.current = null;
+          }
+          setLiveLocationStatusByChatId((current) => ({
+            ...current,
+            [payload.chat_id]: {
+              isActive: false,
+              expiresAt: null,
+            },
+          }));
+        }
+        return;
+      }
+
       if (payload.type === "message_deleted") {
         applyDeletedMessageLocally(payload.chat_id, payload.message_id);
         return;
@@ -1226,7 +1550,9 @@ export default function Messenger() {
 
       if (payload.type === "messages") {
         const mappedMessages = payload.messages.map(mapApiMessage);
-        const isOlderPage = payload.request_before_message_id !== null && payload.request_before_message_id !== undefined;
+        const isOlderPage =
+          payload.request_before_message_id !== null &&
+          payload.request_before_message_id !== undefined;
         setHasMoreMessagesByChat((current) => ({
           ...current,
           [payload.chat_id]: payload.has_more,
@@ -1242,7 +1568,9 @@ export default function Messenger() {
 
           const mergedMessages = [...mappedMessages];
           existingMessages.forEach((message) => {
-            if (!mergedMessages.some((existing) => existing.id === message.id)) {
+            if (
+              !mergedMessages.some((existing) => existing.id === message.id)
+            ) {
               mergedMessages.push(message);
             }
           });
@@ -1292,7 +1620,9 @@ export default function Messenger() {
         const existingMessages = current[nextMessage.chat_id] ?? [];
 
         if (payload.message.client_message_id) {
-          const timeoutId = pendingDeliveryTimeouts.get(payload.message.client_message_id);
+          const timeoutId = pendingDeliveryTimeouts.get(
+            payload.message.client_message_id,
+          );
           if (timeoutId) {
             clearTimeout(timeoutId);
             pendingDeliveryTimeouts.delete(payload.message.client_message_id);
@@ -1300,7 +1630,8 @@ export default function Messenger() {
 
           const optimisticMessageIndex = existingMessages.findIndex(
             (existingMessage) =>
-              existingMessage.client_message_id === payload.message.client_message_id &&
+              existingMessage.client_message_id ===
+                payload.message.client_message_id &&
               (existingMessage.delivery_status === "pending" ||
                 existingMessage.delivery_status === "delivered"),
           );
@@ -1315,7 +1646,11 @@ export default function Messenger() {
           }
         }
 
-        if (existingMessages.some((existingMessage) => existingMessage.id === nextMessage.id)) {
+        if (
+          existingMessages.some(
+            (existingMessage) => existingMessage.id === nextMessage.id,
+          )
+        ) {
           return current;
         }
         return {
@@ -1323,31 +1658,31 @@ export default function Messenger() {
           [nextMessage.chat_id]: [...existingMessages, nextMessage],
         };
       });
-      setChats((currentChats) =>
-        {
-          const targetChatExists = currentChats.some((chat) => chat.id === nextMessage.chat_id);
-          if (!targetChatExists) {
-            void refreshChats();
-            return currentChats;
-          }
+      setChats((currentChats) => {
+        const targetChatExists = currentChats.some(
+          (chat) => chat.id === nextMessage.chat_id,
+        );
+        if (!targetChatExists) {
+          void refreshChats();
+          return currentChats;
+        }
 
-          const updatedChats = currentChats.map((chat) =>
-            chat.id === nextMessage.chat_id
-              ? {
-                  ...chat,
-                  last_message: getChatPreviewText(nextMessage),
-                  last_message_at: nextMessage.created_at,
-                  unread_messages_count: nextMessage.is_own
-                    ? chat.unread_messages_count ?? 0
-                    : selectedChatIdRef.current === nextMessage.chat_id
-                      ? 0
-                      : (chat.unread_messages_count ?? 0) + 1,
-                }
-              : chat,
-          );
-          return sortChatsByRules(updatedChats);
-        },
-      );
+        const updatedChats = currentChats.map((chat) =>
+          chat.id === nextMessage.chat_id
+            ? {
+                ...chat,
+                last_message: getChatPreviewText(nextMessage),
+                last_message_at: nextMessage.created_at,
+                unread_messages_count: nextMessage.is_own
+                  ? (chat.unread_messages_count ?? 0)
+                  : selectedChatIdRef.current === nextMessage.chat_id
+                    ? 0
+                    : (chat.unread_messages_count ?? 0) + 1,
+              }
+            : chat,
+        );
+        return sortChatsByRules(updatedChats);
+      });
     };
 
     return () => {
@@ -1387,6 +1722,24 @@ export default function Messenger() {
   }, []);
 
   React.useEffect(() => {
+    return () => {
+      if (
+        geolocationWatchIdRef.current !== null &&
+        typeof navigator !== "undefined" &&
+        navigator.geolocation
+      ) {
+        navigator.geolocation.clearWatch(geolocationWatchIdRef.current);
+        geolocationWatchIdRef.current = null;
+      }
+      if (liveLocationIntervalRef.current) {
+        clearInterval(liveLocationIntervalRef.current);
+        liveLocationIntervalRef.current = null;
+      }
+      latestLiveCoordsRef.current = null;
+    };
+  }, []);
+
+  React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
         return;
@@ -1421,9 +1774,13 @@ export default function Messenger() {
   function handleMessagesScroll(event: React.UIEvent<HTMLDivElement>) {
     const container = event.currentTarget;
     const threshold = 80;
-    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const distanceToBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
     stickToBottomRef.current = distanceToBottom <= threshold;
-    const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 1);
+    const maxScrollTop = Math.max(
+      container.scrollHeight - container.clientHeight,
+      1,
+    );
     const scrollTopShare = container.scrollTop / maxScrollTop;
     const isInTopFifth = scrollTopShare <= 0.2;
 
@@ -1523,15 +1880,17 @@ export default function Messenger() {
     }
 
     const contentType = resolveContentTypeForFile(file, kind);
-    const optimisticVoiceDurationMs = contentType === "voice"
-      ? await readAudioDurationMs(file)
-      : null;
-    const optimisticVoiceDurationSeconds = optimisticVoiceDurationMs === null
-      ? null
-      : optimisticVoiceDurationMs / 1000;
+    const optimisticVoiceDurationMs =
+      contentType === "voice" ? await readAudioDurationMs(file) : null;
+    const optimisticVoiceDurationSeconds =
+      optimisticVoiceDurationMs === null
+        ? null
+        : optimisticVoiceDurationMs / 1000;
     const optimisticMessageId = existingMessageId ?? -Date.now();
     const localPreviewUrl =
-      contentType === "image" || contentType === "video" || contentType === "voice"
+      contentType === "image" ||
+      contentType === "video" ||
+      contentType === "voice"
         ? URL.createObjectURL(file)
         : undefined;
 
@@ -1562,18 +1921,23 @@ export default function Messenger() {
 
       setChatMessages((current) => ({
         ...current,
-        [selectedChatId]: [...(current[selectedChatId] ?? []), optimisticMessage],
+        [selectedChatId]: [
+          ...(current[selectedChatId] ?? []),
+          optimisticMessage,
+        ],
       }));
       setChats((currentChats) =>
-        sortChatsByRules(currentChats.map((chat) =>
-          chat.id === selectedChatId
-            ? {
-                ...chat,
-                last_message: getChatPreviewText(optimisticMessage),
-                last_message_at: optimisticMessage.created_at,
-              }
-            : chat,
-        )),
+        sortChatsByRules(
+          currentChats.map((chat) =>
+            chat.id === selectedChatId
+              ? {
+                  ...chat,
+                  last_message: getChatPreviewText(optimisticMessage),
+                  last_message_at: optimisticMessage.created_at,
+                }
+              : chat,
+          ),
+        ),
       );
     } else {
       setChatMessages((current) => {
@@ -1592,7 +1956,8 @@ export default function Messenger() {
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
                         duration_ms: optimisticVoiceDurationMs ?? undefined,
-                        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
+                        duration_seconds:
+                          optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl ?? message.attachment.url,
                         status: "pending",
                         upload_progress: 0,
@@ -1603,7 +1968,8 @@ export default function Messenger() {
                         mime_type: file.type || "application/octet-stream",
                         size_bytes: file.size,
                         duration_ms: optimisticVoiceDurationMs ?? undefined,
-                        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
+                        duration_seconds:
+                          optimisticVoiceDurationSeconds ?? undefined,
                         url: localPreviewUrl,
                         status: "pending",
                         upload_progress: 0,
@@ -1629,11 +1995,14 @@ export default function Messenger() {
     }
 
     try {
-      const { data: initData } = await MessengerApi.initAttachment(selectedChatId, {
-        filename: file.name,
-        mime_type: file.type || "application/octet-stream",
-        size_bytes: file.size,
-      });
+      const { data: initData } = await MessengerApi.initAttachment(
+        selectedChatId,
+        {
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          size_bytes: file.size,
+        },
+      );
 
       await uploadFileWithProgress(
         initData.upload_url,
@@ -1661,16 +2030,24 @@ export default function Messenger() {
         },
       );
 
-      await MessengerApi.completeAttachment(selectedChatId, initData.attachment_id, {
-        duration_ms: optimisticVoiceDurationMs ?? undefined,
-        duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
-      });
+      await MessengerApi.completeAttachment(
+        selectedChatId,
+        initData.attachment_id,
+        {
+          duration_ms: optimisticVoiceDurationMs ?? undefined,
+          duration_seconds: optimisticVoiceDurationSeconds ?? undefined,
+        },
+      );
 
-      const { data: sentMessage } = await MessengerApi.sendMessage(selectedChatId, caption ?? "", {
-        contentType,
-        attachmentId: initData.attachment_id,
-        attachmentGroupId,
-      });
+      const { data: sentMessage } = await MessengerApi.sendMessage(
+        selectedChatId,
+        caption ?? "",
+        {
+          contentType,
+          attachmentId: initData.attachment_id,
+          attachmentGroupId,
+        },
+      );
 
       const mappedMessage = mapApiMessage(sentMessage);
 
@@ -1687,39 +2064,43 @@ export default function Messenger() {
       });
 
       setChats((currentChats) =>
-        sortChatsByRules(currentChats.map((chat) =>
-          chat.id === selectedChatId
-            ? {
-                ...chat,
-                last_message: getChatPreviewText(mappedMessage),
-                last_message_at: mappedMessage.created_at,
-              }
-            : chat,
-        )),
+        sortChatsByRules(
+          currentChats.map((chat) =>
+            chat.id === selectedChatId
+              ? {
+                  ...chat,
+                  last_message: getChatPreviewText(mappedMessage),
+                  last_message_at: mappedMessage.created_at,
+                }
+              : chat,
+          ),
+        ),
       );
       attachmentRetryFilesRef.current.delete(optimisticMessageId);
     } catch {
       setChatMessages((current) => {
         const existingMessages = current[selectedChatId] ?? [];
-        const nextMessages: ChatMessageType[] = existingMessages.map((message) => {
-          if (message.id !== optimisticMessageId) {
-            return message;
-          }
+        const nextMessages: ChatMessageType[] = existingMessages.map(
+          (message) => {
+            if (message.id !== optimisticMessageId) {
+              return message;
+            }
 
-          const nextAttachment = message.attachment
-            ? {
-                ...message.attachment,
-                status: "failed" as const,
-                upload_progress: undefined,
-              }
-            : undefined;
+            const nextAttachment = message.attachment
+              ? {
+                  ...message.attachment,
+                  status: "failed" as const,
+                  upload_progress: undefined,
+                }
+              : undefined;
 
-          return {
-            ...message,
-            delivery_status: "pending",
-            attachment: nextAttachment,
-          };
-        });
+            return {
+              ...message,
+              delivery_status: "pending",
+              attachment: nextAttachment,
+            };
+          },
+        );
 
         return {
           ...current,
@@ -1734,7 +2115,10 @@ export default function Messenger() {
     }
   }
 
-  async function handleSendAttachmentBatch(files: File[], caption: string): Promise<void> {
+  async function handleSendAttachmentBatch(
+    files: File[],
+    caption: string,
+  ): Promise<void> {
     if (files.length === 0) {
       return;
     }
@@ -1746,7 +2130,14 @@ export default function Messenger() {
         const file = files[index];
         const kind = resolveAttachmentPickerKind(file);
         const fileCaption = index === 0 ? caption : "";
-        await handleSendAttachment(file, kind, undefined, fileCaption, attachmentGroupId, false);
+        await handleSendAttachment(
+          file,
+          kind,
+          undefined,
+          fileCaption,
+          attachmentGroupId,
+          false,
+        );
       }
     } finally {
       setIsAttachmentUploading(false);
@@ -1768,12 +2159,177 @@ export default function Messenger() {
       return;
     }
     try {
-      const { data } = await MessengerApi.deleteMessage(selectedChatId, messageId);
+      const { data } = await MessengerApi.deleteMessage(
+        selectedChatId,
+        messageId,
+      );
       applyDeletedMessageLocally(data.chat_id, data.message_id);
     } catch {
       antdMessage.error("Failed to delete message.");
     }
   }
+
+  function stopLiveLocationTrackingResources() {
+    if (
+      geolocationWatchIdRef.current !== null &&
+      typeof navigator !== "undefined" &&
+      navigator.geolocation
+    ) {
+      navigator.geolocation.clearWatch(geolocationWatchIdRef.current);
+      geolocationWatchIdRef.current = null;
+    }
+    if (liveLocationIntervalRef.current) {
+      clearInterval(liveLocationIntervalRef.current);
+      liveLocationIntervalRef.current = null;
+    }
+    latestLiveCoordsRef.current = null;
+  }
+
+  function handleStopLiveLocationShare(chatIdOverride?: number) {
+    const activeChatId =
+      chatIdOverride ?? activeLiveLocationChatIdRef.current ?? selectedChatId;
+    stopLiveLocationTrackingResources();
+
+    if (activeChatId === null) {
+      return;
+    }
+
+    activeLiveLocationChatIdRef.current = null;
+    setLiveLocationStatusByChatId((current) => ({
+      ...current,
+      [activeChatId]: {
+        isActive: false,
+        expiresAt: null,
+      },
+    }));
+
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        action: "live_location_stop",
+        chat_id: activeChatId,
+      }),
+    );
+  }
+
+  function handleStartLiveLocationShare(durationSeconds: number | null) {
+    if (selectedChatId === null) {
+      antdMessage.error("Choose a chat first.");
+      return;
+    }
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      antdMessage.error("Geolocation is not supported in this browser.");
+      return;
+    }
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      antdMessage.error("WebSocket is not connected.");
+      return;
+    }
+
+    if (
+      activeLiveLocationChatIdRef.current !== null &&
+      activeLiveLocationChatIdRef.current !== selectedChatId
+    ) {
+      handleStopLiveLocationShare(activeLiveLocationChatIdRef.current);
+    } else {
+      stopLiveLocationTrackingResources();
+    }
+
+    const expiresAt =
+      durationSeconds === null
+        ? null
+        : Math.floor(Date.now() / 1000) + durationSeconds;
+
+    const sendPosition = (
+      action: "live_location_start" | "live_location_update",
+    ) => {
+      const latestCoords = latestLiveCoordsRef.current;
+      if (
+        !latestCoords ||
+        !socketRef.current ||
+        socketRef.current.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+      socketRef.current.send(
+        JSON.stringify({
+          action,
+          chat_id: selectedChatId,
+          latitude: latestCoords.latitude,
+          longitude: latestCoords.longitude,
+          accuracy_meters: latestCoords.accuracy_meters,
+          expires_at_timestamp: expiresAt,
+        }),
+      );
+    };
+
+    let hasSentStart = false;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        latestLiveCoordsRef.current = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy_meters: Number.isFinite(position.coords.accuracy)
+            ? position.coords.accuracy
+            : undefined,
+        };
+
+        if (!hasSentStart) {
+          sendPosition("live_location_start");
+          hasSentStart = true;
+        }
+      },
+      () => {
+        handleStopLiveLocationShare(selectedChatId);
+        antdMessage.error("Could not read current location.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      },
+    );
+
+    geolocationWatchIdRef.current = watchId;
+    activeLiveLocationChatIdRef.current = selectedChatId;
+    setLiveLocationStatusByChatId((current) => ({
+      ...current,
+      [selectedChatId]: {
+        isActive: true,
+        expiresAt,
+      },
+    }));
+
+    liveLocationIntervalRef.current = setInterval(() => {
+      if (expiresAt !== null && Date.now() / 1000 >= expiresAt) {
+        handleStopLiveLocationShare(selectedChatId);
+        return;
+      }
+      sendPosition(
+        hasSentStart ? "live_location_update" : "live_location_start",
+      );
+      hasSentStart = true;
+    }, 3000);
+
+    antdMessage.success("Live location sharing started.");
+  }
+
+  const handleLiveLocationMenuClick: MenuProps["onClick"] = ({ key }) => {
+    if (key === "until_cancel") {
+      handleStartLiveLocationShare(null);
+      return;
+    }
+    const durationSeconds = Number(key);
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      return;
+    }
+    handleStartLiveLocationShare(durationSeconds);
+  };
 
   function handleSendMessage(text: string): boolean {
     if (selectedChatId === null || !text.trim()) {
@@ -1800,22 +2356,26 @@ export default function Messenger() {
       reference_author: replyTarget
         ? resolveMessageAuthor(replyTarget, selectedChat?.title)
         : undefined,
-      reference_content: replyTarget ? shortenText(replyTarget.text) : undefined,
+      reference_content: replyTarget
+        ? shortenText(replyTarget.text)
+        : undefined,
     };
     setChatMessages((current) => ({
       ...current,
       [selectedChatId]: [...(current[selectedChatId] ?? []), optimisticMessage],
     }));
     setChats((currentChats) =>
-      sortChatsByRules(currentChats.map((chat) =>
-        chat.id === selectedChatId
-          ? {
-              ...chat,
-              last_message: text,
-              last_message_at: optimisticMessage.created_at,
-            }
-          : chat,
-      )),
+      sortChatsByRules(
+        currentChats.map((chat) =>
+          chat.id === selectedChatId
+            ? {
+                ...chat,
+                last_message: text,
+                last_message_at: optimisticMessage.created_at,
+              }
+            : chat,
+        ),
+      ),
     );
 
     socketRef.current.send(
@@ -1839,14 +2399,16 @@ export default function Messenger() {
       setChatMessages((current) => {
         const existingMessages = current[selectedChatId] ?? [];
         const optimisticMessageIndex = existingMessages.findIndex(
-          (existingMessage) => existingMessage.client_message_id === clientMessageId,
+          (existingMessage) =>
+            existingMessage.client_message_id === clientMessageId,
         );
 
         if (optimisticMessageIndex === -1) {
           return current;
         }
 
-        const optimisticMessageToUpdate = existingMessages[optimisticMessageIndex];
+        const optimisticMessageToUpdate =
+          existingMessages[optimisticMessageIndex];
         if (optimisticMessageToUpdate.delivery_status === "pending") {
           return current;
         }
@@ -1882,7 +2444,10 @@ export default function Messenger() {
     return true;
   }
 
-  function handleForwardMessage(sourceMessage: ChatMessageType, targetChatIds: number[]): void {
+  function handleForwardMessage(
+    sourceMessage: ChatMessageType,
+    targetChatIds: number[],
+  ): void {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       antdMessage.error("WebSocket is not connected.");
       return;
@@ -1911,7 +2476,9 @@ export default function Messenger() {
       }
     });
 
-    antdMessage.success(`Forwarded to ${targetChatIds.length} chat${targetChatIds.length > 1 ? "s" : ""}.`);
+    antdMessage.success(
+      `Forwarded to ${targetChatIds.length} chat${targetChatIds.length > 1 ? "s" : ""}.`,
+    );
   }
 
   function handleOpenForwardModal(sourceMessage: ChatMessageType) {
@@ -1935,49 +2502,67 @@ export default function Messenger() {
     });
   }
 
-  const jumpToRenderedMessage = React.useCallback((messageId: number): boolean => {
-    const targetElement = messageElementsRef.current.get(messageId);
-    if (!targetElement) {
-      return false;
-    }
-
-    setPendingScrollTargetMessageId(null);
-    targetElement.scrollIntoView({ behavior: "auto", block: "center" });
-    setHighlightedMessageId(messageId);
-    if (highlightTimeoutRef.current) {
-      clearTimeout(highlightTimeoutRef.current);
-    }
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedMessageId((currentHighlightedId) =>
-        currentHighlightedId === messageId ? null : currentHighlightedId,
-      );
-    }, SCROLL_HIGHLIGHT_DURATION_MS);
-    return true;
-  }, []);
-
-  const scheduleJumpRetry = React.useCallback((messageId: number, retriesLeft: number) => {
-    if (jumpRetryTimeoutRef.current) {
-      clearTimeout(jumpRetryTimeoutRef.current);
-    }
-    jumpRetryTimeoutRef.current = setTimeout(() => {
-      const didJump = jumpToRenderedMessage(messageId);
-      if (!didJump && retriesLeft > 0 && selectedMessagesById.has(messageId)) {
-        scheduleJumpRetry(messageId, retriesLeft - 1);
+  const jumpToRenderedMessage = React.useCallback(
+    (messageId: number): boolean => {
+      const targetElement = messageElementsRef.current.get(messageId);
+      if (!targetElement) {
+        return false;
       }
-    }, 30);
-  }, [jumpToRenderedMessage, selectedMessagesById]);
 
-  const handleScrollToMessage = React.useCallback((messageId: number) => {
-    if (jumpToRenderedMessage(messageId)) {
-      return;
-    }
-    setPendingScrollTargetMessageId(messageId);
-    if (selectedMessagesById.has(messageId)) {
-      scheduleJumpRetry(messageId, 40);
-    } else {
-      requestOlderMessagesForSearch();
-    }
-  }, [jumpToRenderedMessage, requestOlderMessagesForSearch, scheduleJumpRetry, selectedMessagesById]);
+      setPendingScrollTargetMessageId(null);
+      targetElement.scrollIntoView({ behavior: "auto", block: "center" });
+      setHighlightedMessageId(messageId);
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+      highlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedMessageId((currentHighlightedId) =>
+          currentHighlightedId === messageId ? null : currentHighlightedId,
+        );
+      }, SCROLL_HIGHLIGHT_DURATION_MS);
+      return true;
+    },
+    [],
+  );
+
+  const scheduleJumpRetry = React.useCallback(
+    (messageId: number, retriesLeft: number) => {
+      if (jumpRetryTimeoutRef.current) {
+        clearTimeout(jumpRetryTimeoutRef.current);
+      }
+      jumpRetryTimeoutRef.current = setTimeout(() => {
+        const didJump = jumpToRenderedMessage(messageId);
+        if (
+          !didJump &&
+          retriesLeft > 0 &&
+          selectedMessagesById.has(messageId)
+        ) {
+          scheduleJumpRetry(messageId, retriesLeft - 1);
+        }
+      }, 30);
+    },
+    [jumpToRenderedMessage, selectedMessagesById],
+  );
+
+  const handleScrollToMessage = React.useCallback(
+    (messageId: number) => {
+      if (jumpToRenderedMessage(messageId)) {
+        return;
+      }
+      setPendingScrollTargetMessageId(messageId);
+      if (selectedMessagesById.has(messageId)) {
+        scheduleJumpRetry(messageId, 40);
+      } else {
+        requestOlderMessagesForSearch();
+      }
+    },
+    [
+      jumpToRenderedMessage,
+      requestOlderMessagesForSearch,
+      scheduleJumpRetry,
+      selectedMessagesById,
+    ],
+  );
 
   React.useEffect(() => {
     if (selectedChatId === null) {
@@ -2115,7 +2700,11 @@ export default function Messenger() {
             src={selectedChat.avatar_url}
             icon={selectedChat.type === "private" ? <HomeFilled /> : undefined}
           />
-          <Text strong className="retro-pixel-text" style={{ fontSize: "16px" }}>
+          <Text
+            strong
+            className="retro-pixel-text"
+            style={{ fontSize: "16px" }}
+          >
             {selectedChat.title}
           </Text>
         </div>
@@ -2213,7 +2802,10 @@ export default function Messenger() {
       return;
     }
 
-    await handleSendAttachment(droppedFile, resolveAttachmentPickerKind(droppedFile));
+    await handleSendAttachment(
+      droppedFile,
+      resolveAttachmentPickerKind(droppedFile),
+    );
   }
 
   function handleToggleMessengerTheme() {
@@ -2236,14 +2828,17 @@ export default function Messenger() {
 
     try {
       setIsExpenseSubmitting(true);
-      const { data: expense } = await MessengerApi.createExpense(selectedChatId, {
-        title: data.title,
-        amount_minor: data.amountMinor,
-        currency: data.currency,
-        payer_user_id: data.payerUserId,
-        participant_user_ids: data.participantUserIds,
-        shares_minor: data.sharesMinor,
-      });
+      const { data: expense } = await MessengerApi.createExpense(
+        selectedChatId,
+        {
+          title: data.title,
+          amount_minor: data.amountMinor,
+          currency: data.currency,
+          payer_user_id: data.payerUserId,
+          participant_user_ids: data.participantUserIds,
+          shares_minor: data.sharesMinor,
+        },
+      );
       await refreshExpenseContext(selectedChatId);
       if (isExpensesViewOpen) {
         await refreshExpensesViewData(selectedChatId);
@@ -2253,20 +2848,23 @@ export default function Messenger() {
       expenseParticipants.forEach((participant) => {
         participantNameById.set(participant.id, participant.username);
       });
-      const payerName = participantNameById.get(expense.payer_user_id) ?? `User ${expense.payer_user_id}`;
+      const payerName =
+        participantNameById.get(expense.payer_user_id) ??
+        `User ${expense.payer_user_id}`;
       const shareLines = expense.shares
         .filter((share) => share.user_id !== expense.payer_user_id)
         .map((share) => {
-          const username = participantNameById.get(share.user_id) ?? `User ${share.user_id}`;
+          const username =
+            participantNameById.get(share.user_id) ?? `User ${share.user_id}`;
           return `- ${username} owes ${(share.share_minor / 100).toFixed(2)} ${expense.currency}`;
         });
       const summaryText = [
         `Split expense: ${expense.title}`,
         `Total: ${(expense.amount_minor / 100).toFixed(2)} ${expense.currency}`,
         `Paid by: ${payerName}`,
-        'Debts:',
-        ...(shareLines.length > 0 ? shareLines : ['- No debts']),
-      ].join('\n');
+        "Debts:",
+        ...(shareLines.length > 0 ? shareLines : ["- No debts"]),
+      ].join("\n");
 
       await MessengerApi.sendMessage(selectedChatId, summaryText);
       antdMessage.success("Expense added.");
@@ -2288,7 +2886,10 @@ export default function Messenger() {
     }
     try {
       setIsExpenseMarkingPaid(true);
-      const { data } = await MessengerApi.markExpenseSettlementPaid(selectedChatId, payload);
+      const { data } = await MessengerApi.markExpenseSettlementPaid(
+        selectedChatId,
+        payload,
+      );
       setExpenseOverview(data);
       if (isExpensesViewOpen) {
         await refreshExpensesViewData(selectedChatId);
@@ -2309,10 +2910,16 @@ export default function Messenger() {
     try {
       let room: WatchRoomType;
       try {
-        const { data } = await MessengerApi.getWatchRoomByChat(selectedChatId, videoId);
+        const { data } = await MessengerApi.getWatchRoomByChat(
+          selectedChatId,
+          videoId,
+        );
         room = data;
       } catch {
-        const { data } = await MessengerApi.createWatchRoom(selectedChatId, videoId);
+        const { data } = await MessengerApi.createWatchRoom(
+          selectedChatId,
+          videoId,
+        );
         room = data;
       }
 
@@ -2326,7 +2933,8 @@ export default function Messenger() {
       setYoutubePreviewVideoId(videoId);
       setWatchRoomsByKey((current) => ({
         ...current,
-        [watchRoomMapKey(joinedRoom.chat_id, joinedRoom.youtube_video_id)]: joinedRoom,
+        [watchRoomMapKey(joinedRoom.chat_id, joinedRoom.youtube_video_id)]:
+          joinedRoom,
       }));
     } catch {
       antdMessage.error("Failed to open watch room.");
@@ -2339,21 +2947,24 @@ export default function Messenger() {
       setYoutubeAssistEnabled(data.youtube_assisted_enabled);
       setCanEnableYouTubeAssist(data.can_enable_assisted);
       setYoutubeAccessMode(data.youtube_access_mode);
-      setActiveWatchRoom((current) => (
+      setActiveWatchRoom((current) =>
         current
           ? {
               ...current,
               youtube_access_mode: data.youtube_access_mode,
             }
-          : current
-      ));
+          : current,
+      );
     } catch {
       antdMessage.error("Failed to switch assisting mode.");
     }
   }
 
   async function handleSyncWatchRoom(targetUserId: number) {
-    if (!activeWatchRoom || !hasYouTubePlayerMethods(youTubePlayerRef.current)) {
+    if (
+      !activeWatchRoom ||
+      !hasYouTubePlayerMethods(youTubePlayerRef.current)
+    ) {
       return;
     }
 
@@ -2361,7 +2972,9 @@ export default function Messenger() {
       clearSyncEnsureTimeouts();
       setIsWatchRoomSyncing(true);
       const { data } = await MessengerApi.getWatchRoom(activeWatchRoom.id);
-      const targetState = getViewerSyncStates(data).find((state) => state.user_id === targetUserId);
+      const targetState = getViewerSyncStates(data).find(
+        (state) => state.user_id === targetUserId,
+      );
       if (!targetState) {
         throw new Error("Target user sync state not found");
       }
@@ -2405,7 +3018,10 @@ export default function Messenger() {
               setActiveWatchRoom(latestRoom);
               setWatchRoomsByKey((current) => ({
                 ...current,
-                [watchRoomMapKey(latestRoom.chat_id, latestRoom.youtube_video_id)]: latestRoom,
+                [watchRoomMapKey(
+                  latestRoom.chat_id,
+                  latestRoom.youtube_video_id,
+                )]: latestRoom,
               }));
             })
             .catch(() => undefined);
@@ -2486,10 +3102,12 @@ export default function Messenger() {
     setYoutubePreviewVideoId(null);
   }
 
-  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map((viewer) => ({
-    key: String(viewer.userId),
-    label: viewer.username,
-  }));
+  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map(
+    (viewer) => ({
+      key: String(viewer.userId),
+      label: viewer.username,
+    }),
+  );
 
   return (
     <Fragment>
@@ -2504,543 +3122,772 @@ export default function Messenger() {
           color: "var(--mess-text)",
         }}
       >
-      <Sider
-        width="5%"
-        style={{
-          background: "var(--mess-sidebar-left)",
-          border: "3px solid var(--line)",
-          borderRight: 0,
-          borderRadius: "10px 0 0 10px",
-          overflow: "hidden",
-          height: "100%",
-          minHeight: 0,
-        }}
-      >
-        <Header
+        <Sider
+          width="5%"
           style={{
-            background: "var(--mess-sidebar-mid)",
-            padding: "0",
-            borderBottom: "3px solid var(--line)",
-          }}
-        >
-          <ControlPanel messengerTheme={messengerTheme} />
-        </Header>
-        <Content style={{ overflowY: "auto", minHeight: 0 }}>
-          <ChatGroupsList
-            groups={groupsForUi}
-            selectedGroupId={selectedFolderId}
-            onSelectGroup={handleSelectFolder}
-            onOpenGroupSettings={handleOpenGroupSettings}
-          />
-        </Content>
-      </Sider>
-      <Sider
-        width="25%"
-        style={{
-          background: "var(--mess-sidebar-mid)",
-          border: "3px solid var(--line)",
-          borderRight: 0,
-          borderLeft: 0,
-          overflow: "hidden",
-          height: "100%",
-          minHeight: 0,
-        }}
-      >
-        <Layout style={{ height: "100%", minHeight: 0 }}>
-          <Header
-            style={{
-              background: "var(--mess-sidebar-mid)",
-              padding: "0 10px",
-              borderBottom: "3px solid var(--line)",
-            }}
-          >
-            <SearchInput />
-          </Header>
-          <Content style={{ background: "var(--mess-shell-bg)", overflowY: "auto", minHeight: 0 }}>
-            <ChatsList
-              chats={visibleChats}
-              onClick={(chat) => handleSelectChat(chat.id)}
-              onPinChat={(chat) => void handlePinChat(chat.id)}
-              onUnpinChat={(chat) => void handleUnpinChat(chat.id)}
-            />
-          </Content>
-        </Layout>
-      </Sider>
-      <Layout
-        style={{
-          border: "3px solid var(--line)",
-          borderRadius: "0 10px 10px 0",
-          overflow: "hidden",
-          height: "100%",
-          minHeight: 0,
-          flex: 1,
-        }}
-      >
-        <Header
-          style={{
-            background: "var(--mess-header)",
-            padding: "0 12px",
-            cursor: selectedChat ? "pointer" : "default",
-            borderBottom: "3px solid var(--line)",
-          }}
-          onClick={handleSelectedChatInfoModal}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            {selectedChat ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                <Avatar
-                  size={36}
-                  src={selectedChat.avatar_url}
-                  icon={selectedChat.type === "private" ? <HomeFilled /> : undefined}
-                />
-                <span className="retro-pixel-text" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {selectedChat.title}
-                </span>
-              </div>
-            ) : (
-              <span className="retro-pixel-text">Select a chat</span>
-            )}
-            {isBackgroundSyncing ? (
-              <Text
-                className="retro-pixel-text"
-                style={{ marginLeft: "12px", color: "var(--mess-muted-text)", fontSize: "10px" }}
-              >
-                Syncing...
-              </Text>
-            ) : null}
-            <Button
-              type="default"
-              size="small"
-              className="retro-pixel-text"
-              style={{ marginLeft: "8px" }}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (selectedChatId === null) {
-                  return;
-                }
-                setIsExpenseModalOpen(true);
-              }}
-              disabled={selectedChatId === null}
-              hidden={!isExpenseFeatureEnabled}
-            >
-              Split
-            </Button>
-            <Button
-              type="default"
-              size="small"
-              className="retro-pixel-text"
-              style={{ marginLeft: "8px" }}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (selectedChatId === null) {
-                  return;
-                }
-                setIsExpensesViewOpen((current) => !current);
-              }}
-              disabled={selectedChatId === null}
-              hidden={!isExpenseFeatureEnabled}
-            >
-              Expenses
-            </Button>
-            <Button
-              type="default"
-              size="small"
-              className="retro-pixel-text"
-              style={{ marginLeft: "8px" }}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleToggleMessengerTheme();
-              }}
-            >
-              {messengerTheme === "retro" ? "Mono" : "Retro"}
-            </Button>
-          </div>
-        </Header>
-        <div style={{ display: "flex", minHeight: 0, flex: 1 }}>
-        <Content
-          ref={messagesContainerRef}
-          onScroll={handleMessagesScroll}
-          onDragEnter={handleMessagesDragEnter}
-          onDragOver={handleMessagesDragOver}
-          onDragLeave={handleMessagesDragLeave}
-          onDrop={(event) => {
-            void handleMessagesDrop(event);
-          }}
-          style={{
-            background: "var(--mess-shell-bg)",
-            color: "var(--mess-text)",
-            fontFamily:
-              messengerTheme === "mono"
-                ? "var(--font-geist-mono), monospace"
-                : "var(--font-pixel), monospace",
-            padding: "24px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "flex-start",
-            gap: "12px",
-            overflowY: "auto",
-            overflowX: "hidden",
-            minWidth: 0,
-            position: "relative",
-            flex: 1,
-          }}
-        >
-          {isMessagesDragOver ? (
-            <div
-              style={{
-                position: "absolute",
-                inset: "14px",
-                zIndex: 5,
-                border: "2px dashed var(--mess-highlight)",
-                borderRadius: "12px",
-                background: "var(--mess-soft-card-bg)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "none",
-              }}
-            >
-              <Text className="retro-pixel-text" style={{ color: "var(--mess-text)" }}>
-                <InboxOutlined style={{ marginRight: "8px" }} />
-                Drop file to upload
-              </Text>
-            </div>
-          ) : null}
-          {selectedChat ? (
-            isMessagesLoading ? (
-              "Loading messages..."
-            ) : selectedMessages.length > 0 ? (
-              <Fragment>
-                {isOlderMessagesLoading ? (
-                  <LoadingOutlined
-                    spin
-                    style={{ alignSelf: "center", color: "var(--mess-text)" }}
-                  />
-                ) : null}
-                <Image.PreviewGroup>
-                {selectedMessages.map((chatMessage, index) => {
-                  const previousMessage = selectedMessages[index - 1];
-                  const shouldShowDateDivider =
-                    !previousMessage ||
-                    !isSameCalendarDay(previousMessage.created_at, chatMessage.created_at);
-                  const referencedMessage = chatMessage.reference_message_id
-                    ? selectedMessagesById.get(chatMessage.reference_message_id)
-                    : null;
-                  const referenceAuthor = referencedMessage
-                    ? resolveMessageAuthor(referencedMessage, selectedChat?.title)
-                    : chatMessage.reference_author ?? "User";
-                  const referenceContent = referencedMessage
-                    ? shortenText(referencedMessage.text)
-                    : shortenText(chatMessage.reference_content ?? "Message");
-                  const hasReference = Boolean(chatMessage.reference_message_id);
-                  const hasForwarded = Boolean(chatMessage.forwarded_from_message_id);
-                  const forwarderName = resolveMessageAuthor(chatMessage, selectedChat?.title);
-                  const forwardedSourceAuthor = chatMessage.forwarded_from_author ?? "Unknown";
-                  const forwardedSourceContent = chatMessage.forwarded_from_content
-                    ? shortenText(chatMessage.forwarded_from_content, 240)
-                    : "";
-                  const messageMenuItems: MenuProps["items"] = [
-                    {
-                      key: "answer",
-                      label: "Answer",
-                    },
-                    {
-                      key: "forward",
-                      label: "Forward",
-                    },
-                    ...(chatMessage.is_own
-                      ? [
-                          {
-                            key: "delete",
-                            label: "Delete",
-                            danger: true,
-                          },
-                        ]
-                      : []),
-                  ];
-                  const isMediaGroupCandidate = isGroupedMediaMessage(chatMessage);
-                  const messageUrls = extractUrls(chatMessage.text);
-                  const primaryMessageUrl = messageUrls[0] ?? null;
-                  const youtubeVideoId = extractYouTubeVideoId(chatMessage.text);
-                  const primaryLinkPreview = primaryMessageUrl
-                    ? linkPreviewByUrl[primaryMessageUrl]
-                    : undefined;
-                  const primaryPreviewUrl = primaryLinkPreview?.url ?? primaryMessageUrl ?? "";
-                  const primaryMessageUrlHost = primaryPreviewUrl
-                    ? new URL(primaryPreviewUrl).hostname.replace(/^www\./, "")
-                    : null;
-                  const primaryYouTubeVideoId = primaryLinkPreview?.youtubeVideoId
-                    ?? (primaryMessageUrl ? extractYouTubeVideoIdFromUrl(primaryMessageUrl) : null);
-                  const watchRoomSummary = selectedChatId !== null && youtubeVideoId
-                    ? watchRoomsByKey[watchRoomMapKey(selectedChatId, youtubeVideoId)]
-                    : undefined;
-                  const attachmentGroupId = chatMessage.attachment_group_id;
-                  const previousIsSameMediaGroup =
-                    isMediaGroupCandidate &&
-                    Boolean(
-                      attachmentGroupId &&
-                      previousMessage &&
-                      previousMessage.attachment_group_id === attachmentGroupId &&
-                      isGroupedMediaMessage(previousMessage),
-                    );
-                  if (previousIsSameMediaGroup) {
-                    return null;
-                  }
-
-                  const mediaGroupMessages: ChatMessageType[] = [chatMessage];
-                  if (isMediaGroupCandidate && attachmentGroupId) {
-                    for (let nextIndex = index + 1; nextIndex < selectedMessages.length; nextIndex += 1) {
-                      const candidate = selectedMessages[nextIndex];
-                      if (
-                        candidate.attachment_group_id !== attachmentGroupId ||
-                        !isGroupedMediaMessage(candidate)
-                      ) {
-                        break;
-                      }
-                      mediaGroupMessages.push(candidate);
-                    }
-                  }
-                  const hasMediaGroup = mediaGroupMessages.length > 1;
-                  const isSingleVideoAttachment =
-                    !hasMediaGroup &&
-                    chatMessage.content_type === "video" &&
-                    Boolean(chatMessage.attachment?.url);
-
-                  return (
-                    <Fragment key={chatMessage.id}>
-                      {shouldShowDateDivider ? (
-                        <div
-                          style={{
-                            position: "sticky",
-                            top: 0,
-                            zIndex: 2,
-                            background: "var(--mess-date-bg)",
-                            padding: "6px 0",
-                            textAlign: "center",
-                          }}
-                        >
-                          <Text style={{ color: "var(--mess-muted-text)" }}>
-                            {formatCalendarDay(chatMessage.created_at)}
-                          </Text>
-                        </div>
-                      ) : null}
-                      <Dropdown
-                        trigger={["contextMenu"]}
-                        menu={{
-                          items: messageMenuItems,
-                          onClick: ({ key, domEvent }) => {
-                            domEvent.stopPropagation();
-                            if (key === "answer") {
-                              setReplyTarget(chatMessage);
-                              return;
-                            }
-                            if (key === "forward") {
-                              handleOpenForwardModal(chatMessage);
-                              return;
-                            }
-                            if (key === "delete") {
-                              void handleDeleteMessage(chatMessage.id);
-                            }
-                          },
-                        }}
-                      >
-                        <div
-                          ref={(element) => {
-                            if (element) {
-                              messageElementsRef.current.set(chatMessage.id, element);
-                            } else {
-                              messageElementsRef.current.delete(chatMessage.id);
-                            }
-                          }}
-                          style={{
-                            alignSelf: chatMessage.is_own ? "flex-start" : "flex-end",
-                            display: "inline-flex",
-                            flexDirection: "column",
-                            width: isSingleVideoAttachment ? "340px" : "auto",
-                            maxWidth: isSingleVideoAttachment ? "100%" : "70%",
-                            background: chatMessage.is_own
-                              ? "var(--mess-own-bubble)"
-                              : "var(--mess-other-bubble)",
-                            color: "var(--mess-text)",
-                            fontFamily:
-                              messengerTheme === "mono"
-                                ? "var(--font-geist-mono), monospace"
-                                : "var(--font-pixel), monospace",
-                            borderRadius: "16px",
-                            padding: "10px 14px",
-                            overflowWrap: "anywhere",
-                            wordBreak: "break-word",
-                            cursor: "context-menu",
-                            outline:
-                              highlightedMessageId === chatMessage.id
-                                ? "2px solid var(--mess-highlight)"
-                                : "2px solid transparent",
-                            boxShadow:
-                              highlightedMessageId === chatMessage.id
-                                ? "0 0 0 4px var(--mess-highlight-glow)"
-                                : "none",
-                            transition: "outline-color 0.25s ease, box-shadow 0.25s ease",
-                          }}
-                        >
-                          {hasReference ? (
-                            <ReplyReferenceBlock
-                              referenceAuthor={referenceAuthor}
-                              referenceContent={referenceContent}
-                              referenceMessageId={chatMessage.reference_message_id}
-                              onScrollToMessage={handleScrollToMessage}
-                            />
-                          ) : null}
-                          {hasForwarded ? (
-                            <ForwardedMessageBlock
-                              forwarderName={forwarderName}
-                              forwardedSourceAuthor={forwardedSourceAuthor}
-                              forwardedSourceContent={forwardedSourceContent}
-                              forwardedSourceAuthorAvatarUrl={chatMessage.forwarded_from_author_avatar_url}
-                            />
-                          ) : null}
-                          <MessageAttachmentContent
-                            chatMessage={chatMessage}
-                            hasMediaGroup={hasMediaGroup}
-                            mediaGroupMessages={mediaGroupMessages}
-                            activeVoiceMessageId={activeVoiceMessageId}
-                            voicePlaybackByMessageId={voicePlaybackByMessageId}
-                            formatVoiceTime={formatVoiceTime}
-                            toggleVoiceMessagePlayback={toggleVoiceMessagePlayback}
-                            registerVoiceAudioElement={registerVoiceAudioElement}
-                            getVoiceAudioHandlers={getVoiceAudioHandlers}
-                            handleOpenAttachment={handleOpenAttachment}
-                            handleRetryAttachment={handleRetryAttachment}
-                          />
-                          <MessageTextBlock
-                            text={chatMessage.text}
-                            messengerTheme={messengerTheme}
-                          />
-                          {primaryMessageUrl ? (
-                            <MessageLinkPreviewBlock
-                              messageUrl={primaryMessageUrl}
-                              previewUrl={primaryPreviewUrl}
-                              messageUrlHost={primaryMessageUrlHost}
-                              title={primaryLinkPreview?.title}
-                              description={primaryLinkPreview?.description}
-                              imageUrl={primaryLinkPreview?.imageUrl}
-                              siteName={primaryLinkPreview?.siteName}
-                              youtubeVideoId={primaryYouTubeVideoId}
-                              markerAvatarUrl={
-                                chatMessage.is_own
-                                  ? currentUserAvatarUrl
-                                  : selectedChat?.avatar_url
-                              }
-                              markerInitial={
-                                chatMessage.is_own
-                                  ? (currentUsername?.slice(0, 1).toUpperCase() ?? "Y")
-                                  : (selectedChat?.title?.slice(0, 1).toUpperCase() ?? "U")
-                              }
-                            />
-                          ) : null}
-                          <MessageMetaRow
-                            createdAt={chatMessage.created_at}
-                            isOwn={chatMessage.is_own}
-                            deliveryStatus={chatMessage.delivery_status}
-                            youtubeVideoId={youtubeVideoId}
-                            geoShareUrl={primaryMessageUrl}
-                            markerAvatarUrl={
-                              chatMessage.is_own
-                                ? currentUserAvatarUrl
-                                : selectedChat?.avatar_url
-                            }
-                            markerInitial={
-                              chatMessage.is_own
-                                ? (currentUsername?.slice(0, 1).toUpperCase() ?? "Y")
-                                : (selectedChat?.title?.slice(0, 1).toUpperCase() ?? "U")
-                            }
-                            watcherCount={watchRoomSummary?.viewer_count}
-                            messengerTheme={messengerTheme}
-                            onOpenYouTubeWatchRoom={(videoId) => {
-                              void handleOpenYouTubeWatchRoom(videoId);
-                            }}
-                          />
-                        </div>
-                      </Dropdown>
-                    </Fragment>
-                  );
-                })}
-                </Image.PreviewGroup>
-              </Fragment>
-            ) : (
-              "No messages yet. Send the first one."
-            )
-          ) : (
-            "Choose a chat from the list to start messaging."
-          )}
-        </Content>
-        {isExpenseFeatureEnabled && isExpensesViewOpen ? (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              isResizingExpensesPanelRef.current = true;
-              document.body.style.userSelect = "none";
-              document.body.style.cursor = "col-resize";
-            }}
-            style={{
-              width: "6px",
-              cursor: "col-resize",
-              background: "var(--line)",
-              opacity: 0.55,
-              transition: "opacity 0.15s ease",
-              flexShrink: 0,
-            }}
-          />
-        ) : null}
-        <div
-          style={{
-            width: isExpenseFeatureEnabled && isExpensesViewOpen ? `${expensesPanelWidth}px` : "0px",
-            transition: "width 0.2s ease",
-            background: "var(--mess-shell-bg)",
+            background: "var(--mess-sidebar-left)",
+            border: "3px solid var(--line)",
+            borderRight: 0,
+            borderRadius: "10px 0 0 10px",
             overflow: "hidden",
+            height: "100%",
             minHeight: 0,
           }}
         >
-          {isExpenseFeatureEnabled ? (
-            <ChatExpensesPanel
-              open={isExpensesViewOpen}
-              onClose={() => setIsExpensesViewOpen(false)}
-              messengerTheme={messengerTheme}
-              isLoading={isExpensesViewLoading}
-              participants={expenseParticipants}
-              expenses={chatExpenses}
-              overview={expenseOverview}
-              payments={expensePayments}
+          <Header
+            style={{
+              background: "var(--mess-sidebar-mid)",
+              padding: "0",
+              borderBottom: "3px solid var(--line)",
+            }}
+          >
+            <ControlPanel messengerTheme={messengerTheme} />
+          </Header>
+          <Content style={{ overflowY: "auto", minHeight: 0 }}>
+            <ChatGroupsList
+              groups={groupsForUi}
+              selectedGroupId={selectedFolderId}
+              onSelectGroup={handleSelectFolder}
+              onOpenGroupSettings={handleOpenGroupSettings}
             />
-          ) : null}
-        </div>
-        </div>
-        <Footer
+          </Content>
+        </Sider>
+        <Sider
+          width="25%"
           style={{
-            background: "var(--mess-header)",
-            padding: "16px 24px",
-            borderTop: "3px solid var(--line)",
+            background: "var(--mess-sidebar-mid)",
+            border: "3px solid var(--line)",
+            borderRight: 0,
+            borderLeft: 0,
+            overflow: "hidden",
+            height: "100%",
+            minHeight: 0,
           }}
         >
-          {selectedChat ? (
-            <MessageComposer
-              key={selectedChat.id}
-              isSocketConnected={isSocketConnected}
-              messengerTheme={messengerTheme}
-              isAttachmentUploading={isAttachmentUploading}
-              replyTarget={replyTarget}
-              selectedChatTitle={selectedChat.title}
-              onCancelReply={() => setReplyTarget(null)}
-              onSendMessage={handleSendMessage}
-              onSendAttachment={handleSendAttachment}
-              onSendAttachmentBatch={handleSendAttachmentBatch}
-            />
-          ) : (
-            "No active chat"
-          )}
-        </Footer>
-      </Layout>
+          <Layout style={{ height: "100%", minHeight: 0 }}>
+            <Header
+              style={{
+                background: "var(--mess-sidebar-mid)",
+                padding: "0 10px",
+                borderBottom: "3px solid var(--line)",
+              }}
+            >
+              <SearchInput />
+            </Header>
+            <Content
+              style={{
+                background: "var(--mess-shell-bg)",
+                overflowY: "auto",
+                minHeight: 0,
+              }}
+            >
+              <ChatsList
+                chats={visibleChats}
+                onClick={(chat) => handleSelectChat(chat.id)}
+                onPinChat={(chat) => void handlePinChat(chat.id)}
+                onUnpinChat={(chat) => void handleUnpinChat(chat.id)}
+              />
+            </Content>
+          </Layout>
+        </Sider>
+        <Layout
+          style={{
+            border: "3px solid var(--line)",
+            borderRadius: "0 10px 10px 0",
+            overflow: "hidden",
+            height: "100%",
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
+          <Header
+            style={{
+              background: "var(--mess-header)",
+              padding: "0 12px",
+              cursor: selectedChat ? "pointer" : "default",
+              borderBottom: "3px solid var(--line)",
+            }}
+            onClick={handleSelectedChatInfoModal}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              {selectedChat ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    minWidth: 0,
+                  }}
+                >
+                  <Avatar
+                    size={36}
+                    src={selectedChat.avatar_url}
+                    icon={
+                      selectedChat.type === "private" ? (
+                        <HomeFilled />
+                      ) : undefined
+                    }
+                  />
+                  <span
+                    className="retro-pixel-text"
+                    style={{
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {selectedChat.title}
+                  </span>
+                </div>
+              ) : (
+                <span className="retro-pixel-text">Select a chat</span>
+              )}
+              {isBackgroundSyncing ? (
+                <Text
+                  className="retro-pixel-text"
+                  style={{
+                    marginLeft: "12px",
+                    color: "var(--mess-muted-text)",
+                    fontSize: "10px",
+                  }}
+                >
+                  Syncing...
+                </Text>
+              ) : null}
+              <Button
+                type="default"
+                size="small"
+                className="retro-pixel-text"
+                style={{ marginLeft: "8px" }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (selectedChatId === null) {
+                    return;
+                  }
+                  setIsExpenseModalOpen(true);
+                }}
+                disabled={selectedChatId === null}
+                hidden={!isExpenseFeatureEnabled}
+              >
+                Split
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                className="retro-pixel-text"
+                style={{ marginLeft: "8px" }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (selectedChatId === null) {
+                    return;
+                  }
+                  setIsExpensesViewOpen((current) => !current);
+                }}
+                disabled={selectedChatId === null}
+                hidden={!isExpenseFeatureEnabled}
+              >
+                Expenses
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                className="retro-pixel-text"
+                style={{ marginLeft: "8px" }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleToggleMessengerTheme();
+                }}
+              >
+                {messengerTheme === "retro" ? "Mono" : "Retro"}
+              </Button>
+            </div>
+          </Header>
+          <div style={{ display: "flex", minHeight: 0, flex: 1 }}>
+            <Content
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              onDragEnter={handleMessagesDragEnter}
+              onDragOver={handleMessagesDragOver}
+              onDragLeave={handleMessagesDragLeave}
+              onDrop={(event) => {
+                void handleMessagesDrop(event);
+              }}
+              style={{
+                background: "var(--mess-shell-bg)",
+                color: "var(--mess-text)",
+                fontFamily:
+                  messengerTheme === "mono"
+                    ? "var(--font-geist-mono), monospace"
+                    : "var(--font-pixel), monospace",
+                padding: "24px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-start",
+                gap: "12px",
+                overflowY: "auto",
+                overflowX: "hidden",
+                minWidth: 0,
+                position: "relative",
+                flex: 1,
+              }}
+            >
+              {isMessagesDragOver ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "14px",
+                    zIndex: 5,
+                    border: "2px dashed var(--mess-highlight)",
+                    borderRadius: "12px",
+                    background: "var(--mess-soft-card-bg)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Text
+                    className="retro-pixel-text"
+                    style={{ color: "var(--mess-text)" }}
+                  >
+                    <InboxOutlined style={{ marginRight: "8px" }} />
+                    Drop file to upload
+                  </Text>
+                </div>
+              ) : null}
+              {selectedChat ? (
+                <div
+                  style={{
+                    border: "1px solid var(--mess-soft-border)",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    background: "var(--mess-soft-card-bg)",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <Text
+                      style={{ color: "var(--mess-text)", fontWeight: 600 }}
+                    >
+                      Map room
+                    </Text>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "var(--mess-muted-text)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {activeLiveLocationsForSelectedChat.length} active
+                        {selectedChatLiveRemainingLabel
+                          ? ` - ${selectedChatLiveRemainingLabel}`
+                          : ""}
+                      </Text>
+                      {selectedChatLiveStatus?.isActive ? (
+                        <Button
+                          size="small"
+                          danger
+                          icon={<StopOutlined />}
+                          onClick={() => handleStopLiveLocationShare()}
+                          disabled={!isSocketConnected}
+                        >
+                          Stop
+                        </Button>
+                      ) : (
+                        <Dropdown
+                          trigger={["click"]}
+                          placement="bottomRight"
+                          menu={{
+                            items: liveLocationMenuItems,
+                            onClick: handleLiveLocationMenuClick,
+                          }}
+                          disabled={!isSocketConnected}
+                        >
+                          <Button
+                            size="small"
+                            type="primary"
+                            icon={<EnvironmentOutlined />}
+                            disabled={!isSocketConnected}
+                          >
+                            Share live
+                          </Button>
+                        </Dropdown>
+                      )}
+                    </div>
+                  </div>
+                  <LiveLocationsMap
+                    shares={activeLiveLocationsForSelectedChat}
+                  />
+                </div>
+              ) : null}
+              {selectedChat ? (
+                isMessagesLoading ? (
+                  "Loading messages..."
+                ) : selectedMessages.length > 0 ? (
+                  <Fragment>
+                    {isOlderMessagesLoading ? (
+                      <LoadingOutlined
+                        spin
+                        style={{
+                          alignSelf: "center",
+                          color: "var(--mess-text)",
+                        }}
+                      />
+                    ) : null}
+                    <Image.PreviewGroup>
+                      {selectedMessages.map((chatMessage, index) => {
+                        const previousMessage = selectedMessages[index - 1];
+                        const shouldShowDateDivider =
+                          !previousMessage ||
+                          !isSameCalendarDay(
+                            previousMessage.created_at,
+                            chatMessage.created_at,
+                          );
+                        const referencedMessage =
+                          chatMessage.reference_message_id
+                            ? selectedMessagesById.get(
+                                chatMessage.reference_message_id,
+                              )
+                            : null;
+                        const referenceAuthor = referencedMessage
+                          ? resolveMessageAuthor(
+                              referencedMessage,
+                              selectedChat?.title,
+                            )
+                          : (chatMessage.reference_author ?? "User");
+                        const referenceContent = referencedMessage
+                          ? shortenText(referencedMessage.text)
+                          : shortenText(
+                              chatMessage.reference_content ?? "Message",
+                            );
+                        const hasReference = Boolean(
+                          chatMessage.reference_message_id,
+                        );
+                        const hasForwarded = Boolean(
+                          chatMessage.forwarded_from_message_id,
+                        );
+                        const forwarderName = resolveMessageAuthor(
+                          chatMessage,
+                          selectedChat?.title,
+                        );
+                        const forwardedSourceAuthor =
+                          chatMessage.forwarded_from_author ?? "Unknown";
+                        const forwardedSourceContent =
+                          chatMessage.forwarded_from_content
+                            ? shortenText(
+                                chatMessage.forwarded_from_content,
+                                240,
+                              )
+                            : "";
+                        const messageMenuItems: MenuProps["items"] = [
+                          {
+                            key: "answer",
+                            label: "Answer",
+                          },
+                          {
+                            key: "forward",
+                            label: "Forward",
+                          },
+                          ...(chatMessage.is_own
+                            ? [
+                                {
+                                  key: "delete",
+                                  label: "Delete",
+                                  danger: true,
+                                },
+                              ]
+                            : []),
+                        ];
+                        const isMediaGroupCandidate =
+                          isGroupedMediaMessage(chatMessage);
+                        const messageUrls = extractUrls(chatMessage.text);
+                        const primaryMessageUrl = messageUrls[0] ?? null;
+                        const youtubeVideoId = extractYouTubeVideoId(
+                          chatMessage.text,
+                        );
+                        const primaryLinkPreview = primaryMessageUrl
+                          ? linkPreviewByUrl[primaryMessageUrl]
+                          : undefined;
+                        const primaryPreviewUrl =
+                          primaryLinkPreview?.url ?? primaryMessageUrl ?? "";
+                        const primaryMessageUrlHost = primaryPreviewUrl
+                          ? new URL(primaryPreviewUrl).hostname.replace(
+                              /^www\./,
+                              "",
+                            )
+                          : null;
+                        const primaryYouTubeVideoId =
+                          primaryLinkPreview?.youtubeVideoId ??
+                          (primaryMessageUrl
+                            ? extractYouTubeVideoIdFromUrl(primaryMessageUrl)
+                            : null);
+                        const watchRoomSummary =
+                          selectedChatId !== null && youtubeVideoId
+                            ? watchRoomsByKey[
+                                watchRoomMapKey(selectedChatId, youtubeVideoId)
+                              ]
+                            : undefined;
+                        const attachmentGroupId =
+                          chatMessage.attachment_group_id;
+                        const previousIsSameMediaGroup =
+                          isMediaGroupCandidate &&
+                          Boolean(
+                            attachmentGroupId &&
+                            previousMessage &&
+                            previousMessage.attachment_group_id ===
+                              attachmentGroupId &&
+                            isGroupedMediaMessage(previousMessage),
+                          );
+                        if (previousIsSameMediaGroup) {
+                          return null;
+                        }
+
+                        const mediaGroupMessages: ChatMessageType[] = [
+                          chatMessage,
+                        ];
+                        if (isMediaGroupCandidate && attachmentGroupId) {
+                          for (
+                            let nextIndex = index + 1;
+                            nextIndex < selectedMessages.length;
+                            nextIndex += 1
+                          ) {
+                            const candidate = selectedMessages[nextIndex];
+                            if (
+                              candidate.attachment_group_id !==
+                                attachmentGroupId ||
+                              !isGroupedMediaMessage(candidate)
+                            ) {
+                              break;
+                            }
+                            mediaGroupMessages.push(candidate);
+                          }
+                        }
+                        const hasMediaGroup = mediaGroupMessages.length > 1;
+                        const isSingleVideoAttachment =
+                          !hasMediaGroup &&
+                          chatMessage.content_type === "video" &&
+                          Boolean(chatMessage.attachment?.url);
+
+                        return (
+                          <Fragment key={chatMessage.id}>
+                            {shouldShowDateDivider ? (
+                              <div
+                                style={{
+                                  position: "sticky",
+                                  top: 0,
+                                  zIndex: 2,
+                                  background: "var(--mess-date-bg)",
+                                  padding: "6px 0",
+                                  textAlign: "center",
+                                }}
+                              >
+                                <Text
+                                  style={{ color: "var(--mess-muted-text)" }}
+                                >
+                                  {formatCalendarDay(chatMessage.created_at)}
+                                </Text>
+                              </div>
+                            ) : null}
+                            <Dropdown
+                              trigger={["contextMenu"]}
+                              menu={{
+                                items: messageMenuItems,
+                                onClick: ({ key, domEvent }) => {
+                                  domEvent.stopPropagation();
+                                  if (key === "answer") {
+                                    setReplyTarget(chatMessage);
+                                    return;
+                                  }
+                                  if (key === "forward") {
+                                    handleOpenForwardModal(chatMessage);
+                                    return;
+                                  }
+                                  if (key === "delete") {
+                                    void handleDeleteMessage(chatMessage.id);
+                                  }
+                                },
+                              }}
+                            >
+                              <div
+                                ref={(element) => {
+                                  if (element) {
+                                    messageElementsRef.current.set(
+                                      chatMessage.id,
+                                      element,
+                                    );
+                                  } else {
+                                    messageElementsRef.current.delete(
+                                      chatMessage.id,
+                                    );
+                                  }
+                                }}
+                                style={{
+                                  alignSelf: chatMessage.is_own
+                                    ? "flex-start"
+                                    : "flex-end",
+                                  display: "inline-flex",
+                                  flexDirection: "column",
+                                  width: isSingleVideoAttachment
+                                    ? "340px"
+                                    : "auto",
+                                  maxWidth: isSingleVideoAttachment
+                                    ? "100%"
+                                    : "70%",
+                                  background: chatMessage.is_own
+                                    ? "var(--mess-own-bubble)"
+                                    : "var(--mess-other-bubble)",
+                                  color: "var(--mess-text)",
+                                  fontFamily:
+                                    messengerTheme === "mono"
+                                      ? "var(--font-geist-mono), monospace"
+                                      : "var(--font-pixel), monospace",
+                                  borderRadius: "16px",
+                                  padding: "10px 14px",
+                                  overflowWrap: "anywhere",
+                                  wordBreak: "break-word",
+                                  cursor: "context-menu",
+                                  outline:
+                                    highlightedMessageId === chatMessage.id
+                                      ? "2px solid var(--mess-highlight)"
+                                      : "2px solid transparent",
+                                  boxShadow:
+                                    highlightedMessageId === chatMessage.id
+                                      ? "0 0 0 4px var(--mess-highlight-glow)"
+                                      : "none",
+                                  transition:
+                                    "outline-color 0.25s ease, box-shadow 0.25s ease",
+                                }}
+                              >
+                                {hasReference ? (
+                                  <ReplyReferenceBlock
+                                    referenceAuthor={referenceAuthor}
+                                    referenceContent={referenceContent}
+                                    referenceMessageId={
+                                      chatMessage.reference_message_id
+                                    }
+                                    onScrollToMessage={handleScrollToMessage}
+                                  />
+                                ) : null}
+                                {hasForwarded ? (
+                                  <ForwardedMessageBlock
+                                    forwarderName={forwarderName}
+                                    forwardedSourceAuthor={
+                                      forwardedSourceAuthor
+                                    }
+                                    forwardedSourceContent={
+                                      forwardedSourceContent
+                                    }
+                                    forwardedSourceAuthorAvatarUrl={
+                                      chatMessage.forwarded_from_author_avatar_url
+                                    }
+                                  />
+                                ) : null}
+                                <MessageAttachmentContent
+                                  chatMessage={chatMessage}
+                                  hasMediaGroup={hasMediaGroup}
+                                  mediaGroupMessages={mediaGroupMessages}
+                                  activeVoiceMessageId={activeVoiceMessageId}
+                                  voicePlaybackByMessageId={
+                                    voicePlaybackByMessageId
+                                  }
+                                  formatVoiceTime={formatVoiceTime}
+                                  toggleVoiceMessagePlayback={
+                                    toggleVoiceMessagePlayback
+                                  }
+                                  registerVoiceAudioElement={
+                                    registerVoiceAudioElement
+                                  }
+                                  getVoiceAudioHandlers={getVoiceAudioHandlers}
+                                  handleOpenAttachment={handleOpenAttachment}
+                                  handleRetryAttachment={handleRetryAttachment}
+                                />
+                                <MessageTextBlock
+                                  text={chatMessage.text}
+                                  messengerTheme={messengerTheme}
+                                />
+                                {primaryMessageUrl ? (
+                                  <MessageLinkPreviewBlock
+                                    messageUrl={primaryMessageUrl}
+                                    previewUrl={primaryPreviewUrl}
+                                    messageUrlHost={primaryMessageUrlHost}
+                                    title={primaryLinkPreview?.title}
+                                    description={
+                                      primaryLinkPreview?.description
+                                    }
+                                    imageUrl={primaryLinkPreview?.imageUrl}
+                                    siteName={primaryLinkPreview?.siteName}
+                                    youtubeVideoId={primaryYouTubeVideoId}
+                                    markerAvatarUrl={
+                                      chatMessage.is_own
+                                        ? currentUserAvatarUrl
+                                        : selectedChat?.avatar_url
+                                    }
+                                    markerInitial={
+                                      chatMessage.is_own
+                                        ? (currentUsername
+                                            ?.slice(0, 1)
+                                            .toUpperCase() ?? "Y")
+                                        : (selectedChat?.title
+                                            ?.slice(0, 1)
+                                            .toUpperCase() ?? "U")
+                                    }
+                                    markerName={
+                                      chatMessage.is_own
+                                        ? (currentUsername ?? "You")
+                                        : (selectedChat?.title ?? "User")
+                                    }
+                                    sentAtIso={chatMessage.created_at}
+                                  />
+                                ) : null}
+                                <MessageMetaRow
+                                  createdAt={chatMessage.created_at}
+                                  isOwn={chatMessage.is_own}
+                                  deliveryStatus={chatMessage.delivery_status}
+                                  youtubeVideoId={youtubeVideoId}
+                                  geoShareUrl={primaryMessageUrl}
+                                  markerAvatarUrl={
+                                    chatMessage.is_own
+                                      ? currentUserAvatarUrl
+                                      : selectedChat?.avatar_url
+                                  }
+                                  markerInitial={
+                                    chatMessage.is_own
+                                      ? (currentUsername
+                                          ?.slice(0, 1)
+                                          .toUpperCase() ?? "Y")
+                                      : (selectedChat?.title
+                                          ?.slice(0, 1)
+                                          .toUpperCase() ?? "U")
+                                  }
+                                  markerName={
+                                    chatMessage.is_own
+                                      ? (currentUsername ?? "You")
+                                      : (selectedChat?.title ?? "User")
+                                  }
+                                  watcherCount={watchRoomSummary?.viewer_count}
+                                  messengerTheme={messengerTheme}
+                                  isSocketConnected={isSocketConnected}
+                                  isLiveLocationSharing={Boolean(
+                                    selectedChatLiveStatus?.isActive,
+                                  )}
+                                  liveLocationRemainingLabel={
+                                    selectedChatLiveRemainingLabel
+                                  }
+                                  onStartLiveLocationShare={
+                                    handleStartLiveLocationShare
+                                  }
+                                  onStopLiveLocationShare={() =>
+                                    handleStopLiveLocationShare()
+                                  }
+                                  onOpenYouTubeWatchRoom={(videoId) => {
+                                    void handleOpenYouTubeWatchRoom(videoId);
+                                  }}
+                                />
+                              </div>
+                            </Dropdown>
+                          </Fragment>
+                        );
+                      })}
+                    </Image.PreviewGroup>
+                  </Fragment>
+                ) : (
+                  "No messages yet. Send the first one."
+                )
+              ) : (
+                "Choose a chat from the list to start messaging."
+              )}
+            </Content>
+            {isExpenseFeatureEnabled && isExpensesViewOpen ? (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  isResizingExpensesPanelRef.current = true;
+                  document.body.style.userSelect = "none";
+                  document.body.style.cursor = "col-resize";
+                }}
+                style={{
+                  width: "6px",
+                  cursor: "col-resize",
+                  background: "var(--line)",
+                  opacity: 0.55,
+                  transition: "opacity 0.15s ease",
+                  flexShrink: 0,
+                }}
+              />
+            ) : null}
+            <div
+              style={{
+                width:
+                  isExpenseFeatureEnabled && isExpensesViewOpen
+                    ? `${expensesPanelWidth}px`
+                    : "0px",
+                transition: "width 0.2s ease",
+                background: "var(--mess-shell-bg)",
+                overflow: "hidden",
+                minHeight: 0,
+              }}
+            >
+              {isExpenseFeatureEnabled ? (
+                <ChatExpensesPanel
+                  open={isExpensesViewOpen}
+                  onClose={() => setIsExpensesViewOpen(false)}
+                  messengerTheme={messengerTheme}
+                  isLoading={isExpensesViewLoading}
+                  participants={expenseParticipants}
+                  expenses={chatExpenses}
+                  overview={expenseOverview}
+                  payments={expensePayments}
+                />
+              ) : null}
+            </div>
+          </div>
+          <Footer
+            style={{
+              background: "var(--mess-header)",
+              padding: "16px 24px",
+              borderTop: "3px solid var(--line)",
+            }}
+          >
+            {selectedChat ? (
+              <MessageComposer
+                key={selectedChat.id}
+                isSocketConnected={isSocketConnected}
+                messengerTheme={messengerTheme}
+                isAttachmentUploading={isAttachmentUploading}
+                replyTarget={replyTarget}
+                selectedChatTitle={selectedChat.title}
+                onCancelReply={() => setReplyTarget(null)}
+                onSendMessage={handleSendMessage}
+                onSendAttachment={handleSendAttachment}
+                onSendAttachmentBatch={handleSendAttachmentBatch}
+              />
+            ) : (
+              "No active chat"
+            )}
+          </Footer>
+        </Layout>
       </div>
       <YouTubeWatchRoomModals
         messengerTheme={messengerTheme}
@@ -3103,4 +3950,3 @@ export default function Messenger() {
     </Fragment>
   );
 }
-

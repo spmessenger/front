@@ -8,7 +8,7 @@ import {
 } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ConfigProvider } from "antd";
-import { Provider } from "jotai";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,53 +47,51 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${baloo.variable} ${pressStart2P.variable}`}
       >
-        <Provider>
-          <AntdRegistry>
-            <ConfigProvider
-              theme={{
-                token: {
-                  colorPrimary: "#e86ea4",
-                  colorBgBase: "#f9e9d3",
-                  colorBgContainer: "#f9e9d3",
-                  colorTextBase: "#3f2831",
-                  colorBorder: "#4d2e3a",
-                  borderRadius: 10,
-                  fontSize: 12,
-                  fontFamily: "var(--font-pixel), monospace",
+        <AntdRegistry>
+          <ConfigProvider
+            theme={{
+              token: {
+                colorPrimary: "#e86ea4",
+                colorBgBase: "#f9e9d3",
+                colorBgContainer: "#f9e9d3",
+                colorTextBase: "#3f2831",
+                colorBorder: "#4d2e3a",
+                borderRadius: 10,
+                fontSize: 12,
+                fontFamily: "var(--font-pixel), monospace",
+              },
+              components: {
+                Layout: {
+                  bodyBg: "transparent",
+                  headerBg: "transparent",
+                  siderBg: "transparent",
+                  footerBg: "transparent",
                 },
-                components: {
-                  Layout: {
-                    bodyBg: "transparent",
-                    headerBg: "transparent",
-                    siderBg: "transparent",
-                    footerBg: "transparent",
-                  },
-                  Button: {
-                    defaultBg: "#f9e9d3",
-                    defaultBorderColor: "#4d2e3a",
-                    defaultColor: "#3f2831",
-                    primaryColor: "#3f2831",
-                    primaryShadow: "none",
-                  },
-                  Input: {
-                    activeBorderColor: "#4d2e3a",
-                    hoverBorderColor: "#4d2e3a",
-                  },
-                  Card: {
-                    headerBg: "#6ebfbe",
-                  },
-                  Modal: {
-                    headerBg: "#6ebfbe",
-                    contentBg: "#f9e9d3",
-                    titleColor: "#2f1d24",
-                  },
+                Button: {
+                  defaultBg: "#f9e9d3",
+                  defaultBorderColor: "#4d2e3a",
+                  defaultColor: "#3f2831",
+                  primaryColor: "#3f2831",
+                  primaryShadow: "none",
                 },
-              }}
-            >
-              {children}
-            </ConfigProvider>
-          </AntdRegistry>
-        </Provider>
+                Input: {
+                  activeBorderColor: "#4d2e3a",
+                  hoverBorderColor: "#4d2e3a",
+                },
+                Card: {
+                  headerBg: "#6ebfbe",
+                },
+                Modal: {
+                  headerBg: "#6ebfbe",
+                  contentBg: "#f9e9d3",
+                  titleColor: "#2f1d24",
+                },
+              },
+            }}
+          >
+            {children}
+          </ConfigProvider>
+        </AntdRegistry>
       </body>
     </html>
   );

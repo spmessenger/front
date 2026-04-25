@@ -13,11 +13,11 @@ export default function Register() {
   const router = useRouter();
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const onFinish = (values: { email: string; verificationCode: string }) => {
+  const onFinish = (values: { username: string; password: string }) => {
     setRegisterError(null);
-    AuthApi.register(values.email, values.verificationCode)
+    AuthApi.register(values.username, values.password)
       .then(() => {
-        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.email);
+        window.localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, values.username);
         router.push("/messenger");
       })
       .catch((error: unknown) => {
@@ -38,7 +38,7 @@ export default function Register() {
         className="auth-mono-card"
         title={<span className="auth-mono-text">Register</span>}
         style={{ width: "min(440px, 100%)" }}
-        bodyStyle={{ paddingTop: 22 }}
+        styles={{ body: { paddingTop: 22 } }}
       >
         <Form
           className="auth-mono-form"
@@ -56,22 +56,20 @@ export default function Register() {
             </FormItem>
           ) : null}
           <FormItem
-            label="Email"
-            name="email"
+            label="Username"
+            name="username"
             rules={[
-              { required: true, message: "Please input your email!" },
-              { type: "email", message: "Please enter a valid email!" },
+              { required: true, message: "Please input your username!" },
             ]}
           >
-            <Input />
+            <Input placeholder="username" autoComplete="username" />
           </FormItem>
           <FormItem
-            label="Code"
-            name="verificationCode"
-            initialValue="0000"
-            rules={[{ required: true, message: "Please input your verification code!" }]}
+            label="Password"
+            name="password"
+            rules={[{ required: true, message: "Please input your password!" }]}
           >
-            <InputPassword />
+            <InputPassword placeholder="password" autoComplete="new-password" />
           </FormItem>
           <Flex justify="space-between">
             <FormItem label={null}>
