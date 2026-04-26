@@ -1,10 +1,6 @@
 "use client";
 import React, { Fragment } from "react";
-import {
-  Button,
-  Typography,
-  message as antdMessage,
-} from "antd";
+import { Button, Typography, message as antdMessage } from "antd";
 import type { MenuProps } from "antd";
 import LeftSider from "./components/LeftSider";
 import ChatsListSider from "./components/ChatsListSider";
@@ -16,7 +12,6 @@ import Workspace from "./components/Workspace";
 import { useVoicePlayback } from "./hooks/useVoicePlayback";
 import {
   ALL_CHATS_GROUP_ID,
-  ALL_CHATS_GROUP_TITLE,
   ATTACHMENT_MAX_SIZE_BYTES,
   CHAT_GROUPS_CACHE_STORAGE_KEY,
   CHATS_CACHE_STORAGE_KEY,
@@ -111,7 +106,6 @@ import {
   useYoutubePreviewVideoIdSetter,
   useChats,
   useChatsSetter,
-  useSelectedFolderId,
   useSelectedFolderIdSetter,
   useSelectedChat,
   useSelectedChatSetter,
@@ -156,7 +150,9 @@ export default function Messenger() {
       return;
     }
 
-    const selectedChatFromList = chats.find((chat) => chat.id === selectedChat.id);
+    const selectedChatFromList = chats.find(
+      (chat) => chat.id === selectedChat.id,
+    );
     if (!selectedChatFromList) {
       setSelectedChat(null);
       return;
@@ -169,7 +165,6 @@ export default function Messenger() {
   const setChatMessages = useChatMessagesSetter();
   const chatFolders = useChatFolders();
   const setChatFolders = useChatFoldersSetter();
-  const selectedFolderId = useSelectedFolderId();
   const setSelectedFolderId = useSelectedFolderIdSetter();
   const [isMessagesLoading, setIsMessagesLoading] = React.useState(false);
   const [isOlderMessagesLoading, setIsOlderMessagesLoading] =
@@ -235,7 +230,8 @@ export default function Messenger() {
   const setCanEnableYouTubeAssist = useCanEnableYouTubeAssistSetter();
   const activeWatchRoom = useActiveWatchRoom();
   const setActiveWatchRoom = useActiveWatchRoomSetter();
-  const setWatchRoomChatMessagesByRoomId = useWatchRoomChatMessagesByRoomIdSetter();
+  const setWatchRoomChatMessagesByRoomId =
+    useWatchRoomChatMessagesByRoomIdSetter();
   const setWatchRoomReactionsByRoomId = useWatchRoomReactionsByRoomIdSetter();
   const setWatchRoomPlaybackSeconds = useWatchRoomPlaybackSecondsSetter();
   const setWatchRoomsByKey = useWatchRoomsByKeySetter();
@@ -472,6 +468,7 @@ export default function Messenger() {
       }
     }
   }, [setChats, setHasChatsSyncedOnce, setIsChatsSyncing]);
+
   const refreshChatGroups = React.useCallback(async () => {
     chatGroupsSyncRequestsRef.current += 1;
     setIsChatGroupsSyncing(true);
@@ -534,48 +531,7 @@ export default function Messenger() {
     () => chats.filter((chat) => chat.type !== "private"),
     [chats],
   );
-  const groupsForUi = React.useMemo(
-    () => [
-      {
-        id: ALL_CHATS_GROUP_ID,
-        title: ALL_CHATS_GROUP_TITLE,
-        unread_messages_count: chats.reduce(
-          (sum, chat) => sum + (chat.unread_messages_count ?? 0),
-          0,
-        ),
-      },
-      ...chatFolders.map((folder) => ({
-        id: folder.id,
-        title: folder.title,
-        unread_messages_count: chats.reduce((sum, chat) => {
-          if (chat.type === "private" || !folder.chat_ids.includes(chat.id)) {
-            return sum;
-          }
-          return sum + (chat.unread_messages_count ?? 0);
-        }, 0),
-      })),
-    ],
-    [chatFolders, chats],
-  );
-  const visibleChats = React.useMemo(() => {
-    if (selectedFolderId === ALL_CHATS_GROUP_ID) {
-      return sortChatsByRules(chats);
-    }
 
-    const selectedFolder = chatFolders.find(
-      (folder) => folder.id === selectedFolderId,
-    );
-    if (!selectedFolder) {
-      return sortChatsByRules(chats);
-    }
-
-    const chatsInFolder = chats.filter(
-      (chat) =>
-        chat.type !== "private" && selectedFolder.chat_ids.includes(chat.id),
-    );
-
-    return sortChatsByRules(chatsInFolder);
-  }, [chats, chatFolders, selectedFolderId]);
   const messengerThemeVars = React.useMemo(
     () => MESSENGER_THEME_VARS[messengerTheme],
     [messengerTheme],
@@ -676,35 +632,45 @@ export default function Messenger() {
         setCanEnableYouTubeAssist(Boolean(data.can_enable_assisted));
       })
       .catch(() => undefined);
-  }, [setCanEnableYouTubeAssist, setYoutubeAccessMode, setYoutubeAssistEnabled]);
-
-  const refreshExpenseContext = React.useCallback(async (chatId: number) => {
-    const [participantsRes, overviewRes] = await Promise.all([
-      MessengerApi.getChatParticipants(chatId),
-      MessengerApi.getChatExpenseOverview(chatId),
-    ]);
-    setExpenseParticipants(participantsRes.data);
-    setExpenseOverview(overviewRes.data);
-  }, [setExpenseOverview, setExpenseParticipants]);
-
-  const refreshExpensesViewData = React.useCallback(async (chatId: number) => {
-    const [expensesRes, paymentsRes, overviewRes, participantsRes] =
-      await Promise.all([
-        MessengerApi.getChatExpenses(chatId),
-        MessengerApi.getChatExpensePayments(chatId),
-        MessengerApi.getChatExpenseOverview(chatId),
-        MessengerApi.getChatParticipants(chatId),
-      ]);
-    setChatExpenses(expensesRes.data);
-    setExpensePayments(paymentsRes.data);
-    setExpenseOverview(overviewRes.data);
-    setExpenseParticipants(participantsRes.data);
   }, [
-    setChatExpenses,
-    setExpenseOverview,
-    setExpenseParticipants,
-    setExpensePayments,
+    setCanEnableYouTubeAssist,
+    setYoutubeAccessMode,
+    setYoutubeAssistEnabled,
   ]);
+
+  const refreshExpenseContext = React.useCallback(
+    async (chatId: number) => {
+      const [participantsRes, overviewRes] = await Promise.all([
+        MessengerApi.getChatParticipants(chatId),
+        MessengerApi.getChatExpenseOverview(chatId),
+      ]);
+      setExpenseParticipants(participantsRes.data);
+      setExpenseOverview(overviewRes.data);
+    },
+    [setExpenseOverview, setExpenseParticipants],
+  );
+
+  const refreshExpensesViewData = React.useCallback(
+    async (chatId: number) => {
+      const [expensesRes, paymentsRes, overviewRes, participantsRes] =
+        await Promise.all([
+          MessengerApi.getChatExpenses(chatId),
+          MessengerApi.getChatExpensePayments(chatId),
+          MessengerApi.getChatExpenseOverview(chatId),
+          MessengerApi.getChatParticipants(chatId),
+        ]);
+      setChatExpenses(expensesRes.data);
+      setExpensePayments(paymentsRes.data);
+      setExpenseOverview(overviewRes.data);
+      setExpenseParticipants(participantsRes.data);
+    },
+    [
+      setChatExpenses,
+      setExpenseOverview,
+      setExpenseParticipants,
+      setExpensePayments,
+    ],
+  );
 
   React.useEffect(() => {
     if (!isExpenseModalOpen || selectedChatId === null) {
@@ -778,12 +744,6 @@ export default function Messenger() {
     [watchRoomViewerItems],
   );
 
-  const syncedToUserName = React.useMemo(
-    () =>
-      watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)
-        ?.username ?? null,
-    [watchRoomViewerItems, syncedToUserId],
-  );
   const activeWatchRoomYouTubeAccessMode = React.useMemo(
     () => youtubeAccessMode,
     [youtubeAccessMode],
@@ -970,10 +930,6 @@ export default function Messenger() {
     setModal,
     setSelectedFolderId,
   ]);
-
-  const handleSelectFolder = React.useCallback((folderId: number) => {
-    setSelectedFolderId(folderId);
-  }, [setSelectedFolderId]);
 
   React.useEffect(() => {
     const storedTheme = window.localStorage.getItem(
@@ -1829,7 +1785,6 @@ export default function Messenger() {
     );
   }, [selectedChatId, isSocketConnected]);
 
-
   const requestOlderMessagesForSearch = React.useCallback(() => {
     if (
       selectedChatId === null ||
@@ -2647,46 +2602,6 @@ export default function Messenger() {
     });
   }, [isMessagesNearBottom, selectedChatId, selectedMessages]);
 
-  function handleSelectChat(chatId: number) {
-    const chatToSelect = chats.find((chat) => chat.id === chatId);
-    if (!chatToSelect) {
-      return;
-    }
-
-    setSelectedChat(chatToSelect);
-    setChats((currentChats) =>
-      currentChats.map((chat) =>
-        chat.id === chatId ? { ...chat, unread_messages_count: 0 } : chat,
-      ),
-    );
-  }
-
-  async function handlePinChat(chatId: number) {
-    try {
-      const response = await MessengerApi.pinChat(chatId);
-      if (!response.data) {
-        antdMessage.error("Failed to pin chat.");
-        return;
-      }
-      await refreshChats();
-    } catch {
-      antdMessage.error("Failed to pin chat.");
-    }
-  }
-
-  async function handleUnpinChat(chatId: number) {
-    try {
-      const response = await MessengerApi.unpinChat(chatId);
-      if (!response.data) {
-        antdMessage.error("Failed to unpin chat.");
-        return;
-      }
-      await refreshChats();
-    } catch {
-      antdMessage.error("Failed to unpin chat.");
-    }
-  }
-
   async function handleOpenAttachment(message: ChatMessageType) {
     const attachment = message.attachment;
     if (!attachment || attachment.status === "failed") {
@@ -3071,13 +2986,6 @@ export default function Messenger() {
     setYoutubePreviewVideoId(null);
   }
 
-  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map(
-    (viewer) => ({
-      key: String(viewer.userId),
-      label: viewer.username,
-    }),
-  );
-
   return (
     <Fragment>
       <div
@@ -3091,19 +2999,8 @@ export default function Messenger() {
           color: "var(--mess-text)",
         }}
       >
-        <LeftSider
-          messengerTheme={messengerTheme}
-          groups={groupsForUi}
-          selectedGroupId={selectedFolderId}
-          onSelectGroup={handleSelectFolder}
-          onOpenGroupSettings={handleOpenGroupSettings}
-        />
-        <ChatsListSider
-          chats={visibleChats}
-          onSelectChat={handleSelectChat}
-          onPinChat={handlePinChat}
-          onUnpinChat={handleUnpinChat}
-        />
+        <LeftSider />
+        <ChatsListSider />
         <Workspace
           messagesContainerRef={messagesContainerRef}
           onRequestOlderMessages={requestOlderMessagesForSearch}
@@ -3112,7 +3009,9 @@ export default function Messenger() {
           handleMessagesDragLeave={handleMessagesDragLeave}
           handleMessagesDrop={handleMessagesDrop}
           isMessagesDragOver={isMessagesDragOver}
-          activeLiveLocationsForSelectedChat={activeLiveLocationsForSelectedChat}
+          activeLiveLocationsForSelectedChat={
+            activeLiveLocationsForSelectedChat
+          }
           selectedChatLiveRemainingLabel={selectedChatLiveRemainingLabel}
           selectedChatLiveStatus={selectedChatLiveStatus}
           liveLocationMenuItems={liveLocationMenuItems}
@@ -3149,8 +3048,6 @@ export default function Messenger() {
       </div>
       <YouTubeWatchRoomModals
         isYouTubePlayerUsable={isYouTubePlayerUsable}
-        syncedToUserName={syncedToUserName}
-        syncTargetMenuItems={syncTargetMenuItems}
         watchRoomViewerItems={watchRoomViewerItems}
         currentUserId={currentUserId}
         availableUsers={availableUsers}
@@ -3182,7 +3079,6 @@ export default function Messenger() {
           participants={expenseParticipants}
           currentUserId={currentUserId}
           overview={expenseOverview}
-          messengerTheme={messengerTheme}
           isSubmitting={isExpenseSubmitting}
           isMarkingPaid={isExpenseMarkingPaid}
           onCancel={() => setIsExpenseModalOpen(false)}

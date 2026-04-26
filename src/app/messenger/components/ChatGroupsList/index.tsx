@@ -1,6 +1,17 @@
-import { Button, Flex } from "antd";
+import { Button, Flex, message } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import ChatGroupItem from "./ChatGroupItem";
+import {
+  useChatFolders,
+  useChatFoldersSetter,
+  useChats,
+  useSelectedFolderId,
+  useSelectedFolderIdSetter,
+} from "@/hooks/features/messenger/chats";
+import { useModalSetter } from "@/hooks/features/ui/modal";
+import GroupSettingsModalContent from "../GroupSettingsModalContent";
+import MessengerApi from "@/lib/api/messenger";
+import { ALL_CHATS_GROUP_ID } from "../../constants";
 
 export interface ChatGroupType {
   id: number;
@@ -8,19 +19,50 @@ export interface ChatGroupType {
   unread_messages_count: number;
 }
 
-interface ChatGroupsListProps {
-  groups: ChatGroupType[];
-  selectedGroupId: number | null;
-  onSelectGroup?: (groupId: number) => void;
-  onOpenGroupSettings?: () => void;
-}
+export default function ChatGroupsList() {
+  const selectedGroupId = useSelectedFolderId();
+  const groups = useChatFolders();
+  const setSelectedFolderId = useSelectedFolderIdSetter();
+  const setModal = useModalSetter();
+  const chats = useChats();
+  const setChatFolders = useChatFoldersSetter();
+  const handleOpenGroupSettings = () => {
+    setModal({
+      open: true,
+      title: "Group settings",
+      footer: null,
+      onCancel: () => setModal({ clear: true }),
+      content: (
+        <GroupSettingsModalContent
+          chats={chats}
+          groups={groups.filter((group) => group.id !== ALL_CHATS_GROUP_ID)}
+          onCancel={() => setModal({ clear: true })}
+          onSave={(groups) => {
+            MessengerApi.replaceChatGroups(groups)
+              .then((res) => {
+                const nextGroups = res.data;
+                setChatFolders(nextGroups);
+                setSelectedFolderId((currentSelectedFolderId) => {
+                  if (currentSelectedFolderId === ALL_CHATS_GROUP_ID) {
+                    return currentSelectedFolderId;
+                  }
 
-export default function ChatGroupsList({
-  groups,
-  selectedGroupId,
-  onSelectGroup,
-  onOpenGroupSettings,
-}: ChatGroupsListProps) {
+                  return nextGroups.some(
+                    (group) => group.id === currentSelectedFolderId,
+                  )
+                    ? currentSelectedFolderId
+                    : ALL_CHATS_GROUP_ID;
+                });
+                setModal({ clear: true });
+              })
+              .catch(() => {
+                message.error("Failed to save chat groups.");
+              });
+          }}
+        />
+      ),
+    });
+  };
   return (
     <Flex vertical align="center" gap="10px" style={{ padding: "10px 0" }}>
       {groups.map((group) => (
@@ -28,7 +70,7 @@ export default function ChatGroupsList({
           key={group.id}
           group={group}
           isActive={selectedGroupId === group.id}
-          onSelect={onSelectGroup}
+          onSelect={() => setSelectedFolderId(group.id)}
         />
       ))}
       <Button
@@ -37,7 +79,7 @@ export default function ChatGroupsList({
         icon={<SettingOutlined />}
         title="Group settings"
         aria-label="Group settings"
-        onClick={onOpenGroupSettings}
+        onClick={handleOpenGroupSettings}
         style={{ color: "var(--foreground)" }}
       />
     </Flex>

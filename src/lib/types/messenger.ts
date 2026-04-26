@@ -241,6 +241,7 @@ export interface CreateGroupPayload {
 }
 
 export interface ChatFolderType {
+  unread_messages_count: any;
   id: number;
   title: string;
   chat_ids: number[];

@@ -5,22 +5,10 @@ import { Content, Header } from "antd/lib/layout/layout";
 import Sider from "antd/lib/layout/Sider";
 import ChatGroupsList from "./ChatGroupsList";
 import ControlPanel from "./ControlPanel";
+import { useMessengerTheme } from "@/hooks/features/messenger/chats";
 
-type LeftSiderProps = {
-  messengerTheme: React.ComponentProps<typeof ControlPanel>["messengerTheme"];
-  groups: React.ComponentProps<typeof ChatGroupsList>["groups"];
-  selectedGroupId: React.ComponentProps<typeof ChatGroupsList>["selectedGroupId"];
-  onSelectGroup?: React.ComponentProps<typeof ChatGroupsList>["onSelectGroup"];
-  onOpenGroupSettings?: React.ComponentProps<typeof ChatGroupsList>["onOpenGroupSettings"];
-};
-
-export default function LeftSider({
-  messengerTheme,
-  groups,
-  selectedGroupId,
-  onSelectGroup,
-  onOpenGroupSettings,
-}: LeftSiderProps) {
+export default function LeftSider() {
+  const messengerTheme = useMessengerTheme();
   return (
     <Sider
       width="5%"
@@ -44,12 +32,7 @@ export default function LeftSider({
         <ControlPanel messengerTheme={messengerTheme} />
       </Header>
       <Content style={{ overflowY: "auto", minHeight: 0 }}>
-        <ChatGroupsList
-          groups={groups}
-          selectedGroupId={selectedGroupId}
-          onSelectGroup={onSelectGroup}
-          onOpenGroupSettings={onOpenGroupSettings}
-        />
+        <ChatGroupsList />
       </Content>
     </Sider>
   );

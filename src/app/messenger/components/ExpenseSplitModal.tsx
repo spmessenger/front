@@ -3,6 +3,7 @@
 import React from "react";
 import { Button, Checkbox, Input, InputNumber, Modal as AntdModal, Select, Switch, Typography } from "antd";
 import type { ContactType, ExpenseOverviewType } from "@/lib/types";
+import { useMessengerTheme } from "@/hooks/features/messenger/chats";
 
 const { Text } = Typography;
 
@@ -20,7 +21,6 @@ interface ExpenseSplitModalProps {
   participants: ContactType[];
   currentUserId: number | null;
   overview: ExpenseOverviewType | null;
-  messengerTheme: "retro" | "mono";
   isSubmitting: boolean;
   isMarkingPaid: boolean;
   onCancel: () => void;
@@ -41,13 +41,13 @@ export default function ExpenseSplitModal({
   participants,
   currentUserId,
   overview,
-  messengerTheme,
   isSubmitting,
   isMarkingPaid,
   onCancel,
   onCreate,
   onMarkSettlementPaid,
 }: ExpenseSplitModalProps) {
+  const messengerTheme = useMessengerTheme();
   const [title, setTitle] = React.useState("");
   const [amountMajor, setAmountMajor] = React.useState<number>(0);
   const [currency, setCurrency] = React.useState("RUB");

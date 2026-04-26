@@ -1,25 +1,46 @@
 "use client";
 
 import React from "react";
-import { Layout } from "antd";
+import { Layout, message } from "antd";
 import { Content, Header } from "antd/lib/layout/layout";
 import Sider from "antd/lib/layout/Sider";
 import ChatsList from "./ChatsList";
 import SearchInput from "./SearchInput";
+import {
+  useChatsByFolder,
+  useSelectedChatSetter,
+} from "@/hooks/features/messenger/chats";
+import { ChatType } from "@/lib/types";
+import MessengerApi from "@/lib/api/messenger";
 
-type ChatsListSiderProps = {
-  chats: React.ComponentProps<typeof ChatsList>["chats"];
-  onSelectChat: (chatId: number) => void;
-  onPinChat: (chatId: number) => void | Promise<void>;
-  onUnpinChat: (chatId: number) => void | Promise<void>;
-};
-
-export default function ChatsListSider({
-  chats,
-  onSelectChat,
-  onPinChat,
-  onUnpinChat,
-}: ChatsListSiderProps) {
+export default function ChatsListSider() {
+  const setSelectedChat = useSelectedChatSetter();
+  const chats = useChatsByFolder();
+  const handleSelectChat = (chat: ChatType) => setSelectedChat(chat);
+  const handlePinChat = async (chat: ChatType) => {
+    try {
+      const response = await MessengerApi.pinChat(chat.id);
+      if (!response.data) {
+        message.error("Failed to pin chat.");
+        return;
+      }
+      await refreshChats();
+    } catch {
+      message.error("Failed to pin chat.");
+    }
+  };
+  const handleUnpinChat = async (chat: ChatType) => {
+    try {
+      const response = await MessengerApi.unpinChat(chat.id);
+      if (!response.data) {
+        message.error("Failed to unpin chat.");
+        return;
+      }
+      await refreshChats();
+    } catch {
+      message.error("Failed to unpin chat."); 
+    }
+  };
   return (
     <Sider
       width="25%"
@@ -52,13 +73,9 @@ export default function ChatsListSider({
         >
           <ChatsList
             chats={chats}
-            onClick={(chat) => onSelectChat(chat.id)}
-            onPinChat={(chat) => {
-              void onPinChat(chat.id);
-            }}
-            onUnpinChat={(chat) => {
-              void onUnpinChat(chat.id);
-            }}
+            onClick={handleSelectChat}
+            onPinChat={handlePinChat}
+            onUnpinChat={handleUnpinChat}
           />
         </Content>
       </Layout>

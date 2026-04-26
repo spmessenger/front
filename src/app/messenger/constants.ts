@@ -6,7 +6,7 @@ export const CHATS_CACHE_STORAGE_KEY = "messenger.chats.v1";
 export const CHAT_GROUPS_CACHE_STORAGE_KEY = "messenger.chatGroups.v1";
 export const MESSENGER_THEME_STORAGE_KEY = "messenger.theme.v1";
 export const ATTACHMENT_MAX_SIZE_BYTES = 100 * 1024 * 1024;
-export const ALL_CHATS_GROUP_ID = -1;
+export const ALL_CHATS_GROUP_ID = 0;
 export const ALL_CHATS_GROUP_TITLE = "\u0412\u0441\u0435 \u0447\u0430\u0442\u044b";
 export const ENABLE_EXPENSE_SPLIT_FEATURE = false;
 

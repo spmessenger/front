@@ -20,6 +20,11 @@ export function useChats(): ChatType[] {
   return useMessengerStore((state) => state.chats);
 }
 
+export function useChatsByFolder(): ChatType[] {
+  const folder = useSelectedFolder();
+  return useChats().filter((chat) => folder ? folder?.chat_ids.includes(chat.id) : true);
+}
+
 export function useSelectedChatSetter(): (
   chat: ChatType | null | undefined,
 ) => void {
@@ -62,6 +67,10 @@ export function useChatFoldersSetter(): (
 
 export function useSelectedFolderId(): number {
   return useMessengerStore((state) => state.selectedFolderId);
+}
+
+export function useSelectedFolder(): ChatFolderType | null {
+  return useMessengerStore((state) => state.chatFolders.find((folder) => folder.id === state.selectedFolderId) ?? null);
 }
 
 export function useSelectedFolderIdSetter(): (value: SetStateAction<number>) => void {

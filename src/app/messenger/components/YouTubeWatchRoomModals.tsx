@@ -1,9 +1,23 @@
 "use client";
 
 import React from "react";
-import { Avatar, Button, Dropdown, Input, Modal as AntdModal, Popover, Typography } from "antd";
+import {
+  Avatar,
+  Button,
+  Dropdown,
+  Input,
+  Modal as AntdModal,
+  Popover,
+  Typography,
+} from "antd";
 import type { MenuProps } from "antd";
-import { CheckOutlined, FullscreenExitOutlined, FullscreenOutlined, LoadingOutlined, SmileOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+  LoadingOutlined,
+  SmileOutlined,
+} from "@ant-design/icons";
 import {
   useActiveWatchRoom,
   useCanEnableYouTubeAssist,
@@ -41,8 +55,6 @@ type WatchRoomReactionView = {
 
 interface YouTubeWatchRoomModalsProps {
   isYouTubePlayerUsable: boolean;
-  syncedToUserName: string | null;
-  syncTargetMenuItems: MenuProps["items"];
   watchRoomViewerItems: WatchRoomViewerItem[];
   currentUserId: number | null;
   availableUsers: ContactType[];
@@ -60,8 +72,6 @@ interface YouTubeWatchRoomModalsProps {
 
 export default function YouTubeWatchRoomModals({
   isYouTubePlayerUsable,
-  syncedToUserName,
-  syncTargetMenuItems,
   watchRoomViewerItems,
   currentUserId,
   availableUsers,
@@ -82,6 +92,9 @@ export default function YouTubeWatchRoomModals({
   const isWatchRoomSyncing = useIsWatchRoomSyncing();
   const isYouTubeApiBlocked = useIsYouTubeApiBlocked();
   const syncedToUserId = useSyncedToUserId();
+  const syncedToUserName =
+    watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)
+      ?.username ?? null;
   const youtubeAccessMode = useYoutubeAccessMode();
   const youtubeAssistEnabled = useYoutubeAssistEnabled();
   const canEnableYouTubeAssist = useCanEnableYouTubeAssist();
@@ -91,27 +104,63 @@ export default function YouTubeWatchRoomModals({
   const watchRoomChatMessagesByRoomId = useWatchRoomChatMessagesByRoomId();
   const watchRoomReactionsByRoomId = useWatchRoomReactionsByRoomId();
   const watchRoomChatMessages = React.useMemo<WatchRoomChatMessageType[]>(
-    () => (activeWatchRoom ? (watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? []) : []),
+    () =>
+      activeWatchRoom
+        ? (watchRoomChatMessagesByRoomId[activeWatchRoom.id] ?? [])
+        : [],
     [activeWatchRoom, watchRoomChatMessagesByRoomId],
   );
+
+  const syncTargetViewerItems = React.useMemo(
+    () => watchRoomViewerItems.filter((viewer) => !viewer.isCurrentUser),
+    [watchRoomViewerItems],
+  );
+  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map(
+    (viewer) => ({
+      key: String(viewer.userId),
+      label: viewer.username,
+    }),
+  );
+
   const watchRoomReactions = React.useMemo<WatchRoomReactionView[]>(
-    () => (activeWatchRoom ? (watchRoomReactionsByRoomId[activeWatchRoom.id] ?? []) : []),
+    () =>
+      activeWatchRoom
+        ? (watchRoomReactionsByRoomId[activeWatchRoom.id] ?? [])
+        : [],
     [activeWatchRoom, watchRoomReactionsByRoomId],
   );
 
-  const reactionEmojiSet = React.useMemo(() => ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F525}", "\u{1F44F}"], []);
-  const inviteableUsers = availableUsers.filter((user) => !activeWatchRoom?.viewer_user_ids.includes(user.id));
+  const reactionEmojiSet = React.useMemo(
+    () => [
+      "\u{1F44D}",
+      "\u2764\uFE0F",
+      "\u{1F602}",
+      "\u{1F62E}",
+      "\u{1F525}",
+      "\u{1F44F}",
+    ],
+    [],
+  );
+  const inviteableUsers = availableUsers.filter(
+    (user) => !activeWatchRoom?.viewer_user_ids.includes(user.id),
+  );
   const syncMenuItems = syncTargetMenuItems ?? [];
   const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
   const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
   const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
-  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] = React.useState(false);
+  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] =
+    React.useState(false);
   const assistedIframeLoadedRef = React.useRef(false);
   const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
   const stageContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const overlayInactivityTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overlayInactivityTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const visibleViewerItems = watchRoomViewerItems.slice(0, 7);
-  const hiddenViewerCount = Math.max(0, watchRoomViewerItems.length - visibleViewerItems.length);
+  const hiddenViewerCount = Math.max(
+    0,
+    watchRoomViewerItems.length - visibleViewerItems.length,
+  );
   const assistedIframeSrc = React.useMemo(() => {
     if (!youtubePreviewVideoId) {
       return "";
@@ -130,7 +179,12 @@ export default function YouTubeWatchRoomModals({
       return directIframeSrc;
     }
     return isAssistedIframeFallbackActive ? directIframeSrc : assistedIframeSrc;
-  }, [assistedIframeSrc, directIframeSrc, isAssistedIframeFallbackActive, youtubeAccessMode]);
+  }, [
+    assistedIframeSrc,
+    directIframeSrc,
+    isAssistedIframeFallbackActive,
+    youtubeAccessMode,
+  ]);
 
   React.useEffect(() => {
     if (!youtubePreviewVideoId) {
@@ -147,7 +201,9 @@ export default function YouTubeWatchRoomModals({
     setIsAssistedIframeFallbackActive(false);
     assistedIframeLoadedRef.current = false;
     const timeoutId = setTimeout(() => {
-      setIsAssistedIframeFallbackActive((current) => (assistedIframeLoadedRef.current ? current : true));
+      setIsAssistedIframeFallbackActive((current) =>
+        assistedIframeLoadedRef.current ? current : true,
+      );
     }, 9000);
     return () => {
       clearTimeout(timeoutId);
@@ -214,7 +270,9 @@ export default function YouTubeWatchRoomModals({
     };
 
     window.addEventListener("mousedown", handleUserActivity);
-    window.addEventListener("touchstart", handleUserActivity, { passive: true });
+    window.addEventListener("touchstart", handleUserActivity, {
+      passive: true,
+    });
     window.addEventListener("keydown", handleUserActivity);
 
     return () => {
@@ -270,7 +328,9 @@ export default function YouTubeWatchRoomModals({
         }
       >
         {youtubePreviewVideoId ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
             <div
               style={{
                 display: "flex",
@@ -280,20 +340,38 @@ export default function YouTubeWatchRoomModals({
               }}
             >
               <Text
-                className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
+                className={
+                  messengerTheme === "mono"
+                    ? "watch-room-meta-text-mono"
+                    : "retro-pixel-text"
+                }
                 style={{ color: "var(--mess-muted-text)" }}
               >
-                <span style={{ marginRight: "10px" }}>Viewers: {activeWatchRoom?.viewer_count ?? 1}</span>
+                <span style={{ marginRight: "10px" }}>
+                  Viewers: {activeWatchRoom?.viewer_count ?? 1}
+                </span>
                 <span className="watch-room-viewer-avatars-inline">
                   {visibleViewerItems.map((viewer, index) => (
                     <span
                       key={viewer.userId}
-                      title={viewer.isCurrentUser ? `${viewer.username} (You)` : viewer.username}
+                      title={
+                        viewer.isCurrentUser
+                          ? `${viewer.username} (You)`
+                          : viewer.username
+                      }
                     >
                       <Avatar
                         size={22}
-                        src={availableUsers.find((user) => user.id === viewer.userId)?.avatar_url}
-                        className={viewer.isCurrentUser ? "watch-room-inline-avatar watch-room-inline-avatar-self" : "watch-room-inline-avatar"}
+                        src={
+                          availableUsers.find(
+                            (user) => user.id === viewer.userId,
+                          )?.avatar_url
+                        }
+                        className={
+                          viewer.isCurrentUser
+                            ? "watch-room-inline-avatar watch-room-inline-avatar-self"
+                            : "watch-room-inline-avatar"
+                        }
                         style={{ marginLeft: index === 0 ? 0 : -8 }}
                       >
                         {viewer.username.slice(0, 1).toUpperCase()}
@@ -301,7 +379,9 @@ export default function YouTubeWatchRoomModals({
                     </span>
                   ))}
                   {hiddenViewerCount > 0 ? (
-                    <span className="watch-room-inline-avatar-overflow">+{hiddenViewerCount}</span>
+                    <span className="watch-room-inline-avatar-overflow">
+                      +{hiddenViewerCount}
+                    </span>
                   ) : null}
                 </span>
               </Text>
@@ -309,12 +389,21 @@ export default function YouTubeWatchRoomModals({
                 <Dropdown
                   trigger={["click"]}
                   placement="bottomLeft"
-                  overlayClassName={messengerTheme === "mono" ? "watch-room-sync-dropdown-mono" : undefined}
+                  overlayClassName={
+                    messengerTheme === "mono"
+                      ? "watch-room-sync-dropdown-mono"
+                      : undefined
+                  }
                   menu={{
                     items: syncMenuItems,
                     onClick: ({ key }) => onSyncTargetSelect(Number(key)),
                   }}
-                  disabled={!activeWatchRoom || isWatchRoomSyncing || !isYouTubePlayerUsable || syncMenuItems.length === 0}
+                  disabled={
+                    !activeWatchRoom ||
+                    isWatchRoomSyncing ||
+                    !isYouTubePlayerUsable ||
+                    syncMenuItems.length === 0
+                  }
                 >
                   <Button
                     className={
@@ -322,7 +411,12 @@ export default function YouTubeWatchRoomModals({
                         ? `watch-room-btn watch-room-btn-mono ${syncedToUserId !== null ? "watch-room-btn-synced watch-room-btn-synced-mono" : ""}`
                         : `watch-room-btn ${syncedToUserId !== null ? "watch-room-btn-synced" : ""}`
                     }
-                    disabled={!activeWatchRoom || isWatchRoomSyncing || !isYouTubePlayerUsable || syncMenuItems.length === 0}
+                    disabled={
+                      !activeWatchRoom ||
+                      isWatchRoomSyncing ||
+                      !isYouTubePlayerUsable ||
+                      syncMenuItems.length === 0
+                    }
                   >
                     {isWatchRoomSyncing
                       ? "Syncing..."
@@ -332,24 +426,42 @@ export default function YouTubeWatchRoomModals({
                   </Button>
                 </Dropdown>
                 <Button
-                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
+                  className={
+                    messengerTheme === "mono"
+                      ? "watch-room-btn watch-room-btn-mono"
+                      : "watch-room-btn"
+                  }
                   onClick={onOpenInviteModal}
                 >
                   Invite
                 </Button>
                 {false ? (
                   <Button
-                    className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
-                    onClick={() => onToggleYouTubeAssistEnabled(!youtubeAssistEnabled)}
+                    className={
+                      messengerTheme === "mono"
+                        ? "watch-room-btn watch-room-btn-mono"
+                        : "watch-room-btn"
+                    }
+                    onClick={() =>
+                      onToggleYouTubeAssistEnabled(!youtubeAssistEnabled)
+                    }
                     disabled={!canEnableYouTubeAssist}
-                    title={canEnableYouTubeAssist ? "Toggle assisting mode" : "Premium required for assisting"}
+                    title={
+                      canEnableYouTubeAssist
+                        ? "Toggle assisting mode"
+                        : "Premium required for assisting"
+                    }
                   >
                     {youtubeAssistEnabled ? "Assist On" : "Assist Off"}
                   </Button>
                 ) : null}
                 <Button
                   danger
-                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono" : "watch-room-btn"}
+                  className={
+                    messengerTheme === "mono"
+                      ? "watch-room-btn watch-room-btn-mono"
+                      : "watch-room-btn"
+                  }
                   onClick={onCloseWatchRoom}
                 >
                   Leave room
@@ -418,7 +530,9 @@ export default function YouTubeWatchRoomModals({
                   }}
                   ref={handleYouTubePlayerHostRef}
                 />
-                {!isYouTubePlayerUsable && !isYouTubeApiBlocked && youtubeAccessMode !== "assisted" ? (
+                {!isYouTubePlayerUsable &&
+                !isYouTubeApiBlocked &&
+                youtubeAccessMode !== "assisted" ? (
                   <div
                     className={
                       messengerTheme === "mono"
@@ -445,10 +559,20 @@ export default function YouTubeWatchRoomModals({
                   ))}
                 </div>
                 <Button
-                  className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono watch-room-player-fs-btn" : "watch-room-btn watch-room-player-fs-btn"}
+                  className={
+                    messengerTheme === "mono"
+                      ? "watch-room-btn watch-room-btn-mono watch-room-player-fs-btn"
+                      : "watch-room-btn watch-room-player-fs-btn"
+                  }
                   onClick={toggleStageFullscreen}
                   title={isStageFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  icon={isStageFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                  icon={
+                    isStageFullscreen ? (
+                      <FullscreenExitOutlined />
+                    ) : (
+                      <FullscreenOutlined />
+                    )
+                  }
                 />
               </div>
               {isStageFullscreen ? (
@@ -466,12 +590,23 @@ export default function YouTubeWatchRoomModals({
                 style={{ flex: "0 0 300px", maxWidth: "360px" }}
                 onMouseEnter={markOverlayUiActive}
               >
-                <Text className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}>
+                <Text
+                  className={
+                    messengerTheme === "mono"
+                      ? "watch-room-meta-text-mono"
+                      : "retro-pixel-text"
+                  }
+                >
                   Room chat
                 </Text>
-                <div className="watch-room-chat-list" ref={watchRoomChatMessagesRef}>
+                <div
+                  className="watch-room-chat-list"
+                  ref={watchRoomChatMessagesRef}
+                >
                   {watchRoomChatMessages.map((message) => {
-                    const isOwn = currentUserId !== null && message.user_id === currentUserId;
+                    const isOwn =
+                      currentUserId !== null &&
+                      message.user_id === currentUserId;
                     return (
                       <div
                         key={message.id}
@@ -490,7 +625,11 @@ export default function YouTubeWatchRoomModals({
                   })}
                   {watchRoomChatMessages.length === 0 ? (
                     <Text
-                      className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
+                      className={
+                        messengerTheme === "mono"
+                          ? "watch-room-meta-text-mono"
+                          : "retro-pixel-text"
+                      }
                       style={{ color: "var(--mess-muted-text)" }}
                     >
                       No messages yet.
@@ -500,7 +639,9 @@ export default function YouTubeWatchRoomModals({
                 <div className="watch-room-chat-input-row">
                   <Input
                     value={watchRoomChatDraft}
-                    onChange={(event) => setWatchRoomChatDraft(event.target.value)}
+                    onChange={(event) =>
+                      setWatchRoomChatDraft(event.target.value)
+                    }
                     placeholder="Write a message..."
                     maxLength={2000}
                     disabled={!isSocketConnected}
@@ -512,8 +653,12 @@ export default function YouTubeWatchRoomModals({
                   <Popover
                     trigger="click"
                     placement="topRight"
-                    overlayClassName={messengerTheme === "mono" ? "watch-room-reaction-popover-mono" : undefined}
-                    content={(
+                    overlayClassName={
+                      messengerTheme === "mono"
+                        ? "watch-room-reaction-popover-mono"
+                        : undefined
+                    }
+                    content={
                       <div className="watch-room-reaction-picker-column">
                         {reactionEmojiSet.map((emoji) => (
                           <button
@@ -526,10 +671,14 @@ export default function YouTubeWatchRoomModals({
                           </button>
                         ))}
                       </div>
-                    )}
+                    }
                   >
                     <Button
-                      className={messengerTheme === "mono" ? "watch-room-btn watch-room-btn-mono watch-room-emoji-btn" : "watch-room-btn watch-room-emoji-btn"}
+                      className={
+                        messengerTheme === "mono"
+                          ? "watch-room-btn watch-room-btn-mono watch-room-emoji-btn"
+                          : "watch-room-btn watch-room-emoji-btn"
+                      }
                       disabled={!isSocketConnected}
                       icon={<SmileOutlined />}
                     />
@@ -545,14 +694,19 @@ export default function YouTubeWatchRoomModals({
               </div>
             </div>
             <Text
-              className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
+              className={
+                messengerTheme === "mono"
+                  ? "watch-room-meta-text-mono"
+                  : "retro-pixel-text"
+              }
               style={{ color: "var(--mess-muted-text)" }}
             >
               Use Sync to align playback for everyone in the room.
             </Text>
             {isYouTubeApiBlocked ? (
               <Text style={{ color: "var(--mess-muted-text)" }}>
-                YouTube player API is unavailable in this browser/session. Fallback mode is active.
+                YouTube player API is unavailable in this browser/session.
+                Fallback mode is active.
               </Text>
             ) : null}
           </div>
@@ -608,13 +762,29 @@ export default function YouTubeWatchRoomModals({
                   }
                   onClick={() => onInviteUserSelect(user.id)}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      minWidth: 0,
+                    }}
+                  >
                     <Avatar size={28} src={user.avatar_url}>
                       {user.username.slice(0, 1).toUpperCase()}
                     </Avatar>
                     <Text
-                      className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
-                      style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      className={
+                        messengerTheme === "mono"
+                          ? "watch-room-meta-text-mono"
+                          : "retro-pixel-text"
+                      }
+                      style={{
+                        margin: 0,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
                     >
                       {user.username}
                     </Text>
@@ -625,7 +795,11 @@ export default function YouTubeWatchRoomModals({
             })}
             {inviteableUsers.length === 0 ? (
               <Text
-                className={messengerTheme === "mono" ? "watch-room-meta-text-mono" : "retro-pixel-text"}
+                className={
+                  messengerTheme === "mono"
+                    ? "watch-room-meta-text-mono"
+                    : "retro-pixel-text"
+                }
                 style={{ color: "var(--mess-muted-text)" }}
               >
                 No users available to invite.
@@ -637,4 +811,3 @@ export default function YouTubeWatchRoomModals({
     </>
   );
 }
-
