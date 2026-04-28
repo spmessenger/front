@@ -9,6 +9,7 @@ import {
   Modal as AntdModal,
   Popover,
   Typography,
+  message as antdMessage,
 } from "antd";
 import type { MenuProps } from "antd";
 import {
@@ -20,25 +21,52 @@ import {
 } from "@ant-design/icons";
 import {
   useActiveWatchRoom,
+  useActiveWatchRoomSetter,
   useCanEnableYouTubeAssist,
+  useCanEnableYouTubeAssistSetter,
   useIsSocketConnected,
   useIsWatchRoomInviteModalOpen,
+  useIsWatchRoomInviteModalOpenSetter,
   useIsWatchRoomSyncing,
+  useIsWatchRoomSyncingSetter,
   useIsYouTubeApiBlocked,
+  useIsYouTubeApiBlockedSetter,
+  useIsYouTubeApiReady,
+  useIsYouTubeApiReadySetter,
+  useIsYouTubePlayerReady,
+  useIsYouTubePlayerReadySetter,
   useMessengerTheme,
+  useSocket,
   useSyncedToUserId,
+  useSyncedToUserIdSetter,
   useWatchRoomChatMessagesByRoomId,
+  useWatchRoomChatMessagesByRoomIdSetter,
   useWatchRoomInviteUserId,
+  useWatchRoomInviteUserIdSetter,
+  useWatchRoomPlaybackSecondsSetter,
   useWatchRoomReactionsByRoomId,
+  useWatchRoomsByKeySetter,
   useYoutubeAccessMode,
+  useYoutubeAccessModeSetter,
   useYoutubeAssistEnabled,
+  useYoutubeAssistEnabledSetter,
   useYoutubePreviewVideoId,
+  useYoutubePreviewVideoIdSetter,
 } from "@/hooks/features/messenger/chats";
-import type { ContactType, WatchRoomChatMessageType } from "@/lib/types";
-import type { MessengerTheme } from "../types";
+import type {
+  ContactType,
+  WatchRoomChatMessageType,
+  WatchRoomType,
+} from "@/lib/types";
+import type { MessengerTheme, YouTubePlayerLike } from "../types";
+import { hasYouTubePlayerMethods } from "../types";
 import { API_BASE_URL } from "@/lib/config";
+import AuthApi from "@/lib/api/auth";
+import MessengerApi from "@/lib/api/messenger";
+import { getViewerSyncStates, watchRoomMapKey } from "../utils";
 
 const { Text } = Typography;
+const WATCH_ROOM_REACTION_PREFIX = "[[reaction]]";
 
 type WatchRoomViewerItem = {
   userId: number;
@@ -53,56 +81,82 @@ type WatchRoomReactionView = {
   y_percent: number;
 };
 
-interface YouTubeWatchRoomModalsProps {
-  isYouTubePlayerUsable: boolean;
-  watchRoomViewerItems: WatchRoomViewerItem[];
-  currentUserId: number | null;
-  availableUsers: ContactType[];
-  onCloseWatchRoom: () => void;
-  onSyncTargetSelect: (targetUserId: number) => void;
-  onToggleYouTubeAssistEnabled: (enabled: boolean) => void;
-  onOpenInviteModal: () => void;
-  onCloseInviteModal: () => void;
-  onInviteUserSelect: (userId: number) => void;
-  onInviteConfirm: () => void;
-  onSendWatchRoomChatMessage: (content: string) => void;
-  onSendWatchRoomReaction: (emoji: string) => void;
-  handleYouTubePlayerHostRef: (node: HTMLDivElement | null) => void;
-}
 
-export default function YouTubeWatchRoomModals({
-  isYouTubePlayerUsable,
-  watchRoomViewerItems,
-  currentUserId,
-  availableUsers,
-  onCloseWatchRoom,
-  onSyncTargetSelect,
-  onToggleYouTubeAssistEnabled,
-  onOpenInviteModal,
-  onCloseInviteModal,
-  onInviteUserSelect,
-  onInviteConfirm,
-  onSendWatchRoomChatMessage,
-  onSendWatchRoomReaction,
-  handleYouTubePlayerHostRef,
-}: YouTubeWatchRoomModalsProps) {
+export default function YouTubeWatchRoomModals() {
   const messengerTheme = useMessengerTheme() as MessengerTheme;
   const youtubePreviewVideoId = useYoutubePreviewVideoId();
+  const setYoutubePreviewVideoId = useYoutubePreviewVideoIdSetter();
   const activeWatchRoom = useActiveWatchRoom();
+  const setActiveWatchRoom = useActiveWatchRoomSetter();
   const isWatchRoomSyncing = useIsWatchRoomSyncing();
+  const setIsWatchRoomSyncing = useIsWatchRoomSyncingSetter();
   const isYouTubeApiBlocked = useIsYouTubeApiBlocked();
+  const setIsYouTubeApiBlocked = useIsYouTubeApiBlockedSetter();
+  const isYouTubeApiReady = useIsYouTubeApiReady();
+  const setIsYouTubeApiReady = useIsYouTubeApiReadySetter();
+  const isYouTubePlayerReady = useIsYouTubePlayerReady();
+  const setIsYouTubePlayerReady = useIsYouTubePlayerReadySetter();
   const syncedToUserId = useSyncedToUserId();
-  const syncedToUserName =
-    watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)
-      ?.username ?? null;
+  const setSyncedToUserId = useSyncedToUserIdSetter();
   const youtubeAccessMode = useYoutubeAccessMode();
+  const setYoutubeAccessMode = useYoutubeAccessModeSetter();
   const youtubeAssistEnabled = useYoutubeAssistEnabled();
+  const setYoutubeAssistEnabled = useYoutubeAssistEnabledSetter();
   const canEnableYouTubeAssist = useCanEnableYouTubeAssist();
+  const setCanEnableYouTubeAssist = useCanEnableYouTubeAssistSetter();
   const isSocketConnected = useIsSocketConnected();
+  const socket = useSocket();
   const isWatchRoomInviteModalOpen = useIsWatchRoomInviteModalOpen();
+  const setIsWatchRoomInviteModalOpen = useIsWatchRoomInviteModalOpenSetter();
   const watchRoomInviteUserId = useWatchRoomInviteUserId();
   const watchRoomChatMessagesByRoomId = useWatchRoomChatMessagesByRoomId();
+  const setWatchRoomChatMessagesByRoomId =
+    useWatchRoomChatMessagesByRoomIdSetter();
   const watchRoomReactionsByRoomId = useWatchRoomReactionsByRoomId();
+  const setWatchRoomInviteUserId = useWatchRoomInviteUserIdSetter();
+  const setWatchRoomPlaybackSeconds = useWatchRoomPlaybackSecondsSetter();
+  const setWatchRoomsByKey = useWatchRoomsByKeySetter();
+  const [currentUserId, setCurrentUserId] = React.useState<number | null>(null);
+  const [currentUsername, setCurrentUsername] = React.useState<string | null>(
+    null,
+  );
+  const [availableUsers, setAvailableUsers] = React.useState<ContactType[]>([]);
+  const [youTubePlayerHostElement, setYouTubePlayerHostElement] =
+    React.useState<HTMLDivElement | null>(null);
+  const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
+  const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
+  const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
+  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] =
+    React.useState(false);
+  const youTubePlayerRef = React.useRef<YouTubePlayerLike | null>(null);
+  const youTubeApiReadyRef = React.useRef(false);
+  const socketRef = React.useRef<WebSocket | null>(null);
+  const activeWatchRoomRef = React.useRef<WatchRoomType | null>(null);
+  const activeWatchRoomIdRef = React.useRef<string | null>(null);
+  const syncedToUserIdRef = React.useRef<number | null>(null);
+  const isSocketConnectedRef = React.useRef(false);
+  const syncEnsureTimeoutsRef = React.useRef<
+    Array<ReturnType<typeof setTimeout>>
+  >([]);
+  const lastWatchRoomPlaybackSentAtRef = React.useRef(0);
+  const suppressUnsyncUntilRef = React.useRef(0);
+  const assistedIframeLoadedRef = React.useRef(false);
+  const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
+  const stageContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const overlayInactivityTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const handleYouTubePlayerHostRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) {
+        return;
+      }
+      setYouTubePlayerHostElement(node);
+    },
+    [],
+  );
+  const isYouTubePlayerUsable =
+    isYouTubePlayerReady && hasYouTubePlayerMethods(youTubePlayerRef.current);
   const watchRoomChatMessages = React.useMemo<WatchRoomChatMessageType[]>(
     () =>
       activeWatchRoom
@@ -110,18 +164,6 @@ export default function YouTubeWatchRoomModals({
         : [],
     [activeWatchRoom, watchRoomChatMessagesByRoomId],
   );
-
-  const syncTargetViewerItems = React.useMemo(
-    () => watchRoomViewerItems.filter((viewer) => !viewer.isCurrentUser),
-    [watchRoomViewerItems],
-  );
-  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map(
-    (viewer) => ({
-      key: String(viewer.userId),
-      label: viewer.username,
-    }),
-  );
-
   const watchRoomReactions = React.useMemo<WatchRoomReactionView[]>(
     () =>
       activeWatchRoom
@@ -141,21 +183,41 @@ export default function YouTubeWatchRoomModals({
     ],
     [],
   );
+  const watchRoomViewerItems = React.useMemo<WatchRoomViewerItem[]>(() => {
+    if (!activeWatchRoom) {
+      return [];
+    }
+
+    return activeWatchRoom.viewer_user_ids.map((userId) => {
+      const knownUser = availableUsers.find((user) => user.id === userId);
+      const isCurrentUser = currentUserId === userId;
+      const username =
+        knownUser?.username ??
+        (isCurrentUser && currentUsername ? currentUsername : `User ${userId}`);
+      return {
+        userId,
+        username,
+        isCurrentUser,
+      };
+    });
+  }, [activeWatchRoom, availableUsers, currentUserId, currentUsername]);
+  const syncedToUserName =
+    watchRoomViewerItems.find((viewer) => viewer.userId === syncedToUserId)
+      ?.username ?? null;
+  const syncTargetViewerItems = React.useMemo(
+    () => watchRoomViewerItems.filter((viewer) => !viewer.isCurrentUser),
+    [watchRoomViewerItems],
+  );
+  const syncTargetMenuItems: MenuProps["items"] = syncTargetViewerItems.map(
+    (viewer) => ({
+      key: String(viewer.userId),
+      label: viewer.username,
+    }),
+  );
   const inviteableUsers = availableUsers.filter(
     (user) => !activeWatchRoom?.viewer_user_ids.includes(user.id),
   );
   const syncMenuItems = syncTargetMenuItems ?? [];
-  const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
-  const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
-  const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
-  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] =
-    React.useState(false);
-  const assistedIframeLoadedRef = React.useRef(false);
-  const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
-  const stageContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const overlayInactivityTimeoutRef = React.useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
   const visibleViewerItems = watchRoomViewerItems.slice(0, 7);
   const hiddenViewerCount = Math.max(
     0,
@@ -184,6 +246,592 @@ export default function YouTubeWatchRoomModals({
     directIframeSrc,
     isAssistedIframeFallbackActive,
     youtubeAccessMode,
+  ]);
+
+  const clearSyncEnsureTimeouts = React.useCallback(() => {
+    syncEnsureTimeoutsRef.current.forEach((timeoutId) =>
+      clearTimeout(timeoutId),
+    );
+    syncEnsureTimeoutsRef.current = [];
+  }, []);
+
+  const tryExtractWatchRoomReactionEmoji = React.useCallback(
+    (content: string) => {
+      if (!content.startsWith(WATCH_ROOM_REACTION_PREFIX)) {
+        return null;
+      }
+      const emoji = content.slice(WATCH_ROOM_REACTION_PREFIX.length).trim();
+      return emoji.length > 0 ? emoji : null;
+    },
+    [],
+  );
+
+  const resolveTargetPlaybackSeconds = React.useCallback(
+    (targetState: {
+      current_time_seconds: number;
+      is_playing: boolean;
+      updated_at: number;
+    }) => {
+      const nowSeconds = Date.now() / 1000;
+      const transportLeadSeconds = 0.3;
+      return targetState.is_playing
+        ? targetState.current_time_seconds +
+            Math.max(0, nowSeconds - targetState.updated_at) +
+            transportLeadSeconds
+        : targetState.current_time_seconds;
+    },
+    [],
+  );
+
+  const applyTargetSyncStateToPlayer = React.useCallback(
+    (targetState: {
+      current_time_seconds: number;
+      is_playing: boolean;
+      updated_at: number;
+    }) => {
+      const player = youTubePlayerRef.current;
+      if (!hasYouTubePlayerMethods(player)) {
+        return false;
+      }
+      const targetSeconds = Math.max(
+        0,
+        resolveTargetPlaybackSeconds(targetState),
+      );
+      suppressUnsyncUntilRef.current = Date.now() + 1200;
+      player.seekTo(targetSeconds, true);
+      if (targetState.is_playing) {
+        player.playVideo();
+      } else {
+        player.pauseVideo();
+      }
+      return true;
+    },
+    [resolveTargetPlaybackSeconds],
+  );
+
+  const sendWatchRoomPlaybackUpdate = React.useCallback(
+    (force: boolean = false) => {
+      const room = activeWatchRoomRef.current;
+      const currentSocket = socketRef.current;
+      const player = youTubePlayerRef.current;
+      if (!room || !hasYouTubePlayerMethods(player)) {
+        return;
+      }
+      if (
+        !isSocketConnectedRef.current ||
+        !currentSocket ||
+        currentSocket.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+
+      const nowMs = Date.now();
+      const minIntervalMs = 350;
+      if (
+        !force &&
+        nowMs - lastWatchRoomPlaybackSentAtRef.current < minIntervalMs
+      ) {
+        return;
+      }
+
+      const currentTime = player.getCurrentTime();
+      const isPlaying =
+        player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+      currentSocket.send(
+        JSON.stringify({
+          action: "watch_room_playback",
+          chat_id: room.chat_id,
+          room_id: room.id,
+          current_time_seconds: currentTime,
+          is_playing: isPlaying,
+        }),
+      );
+      lastWatchRoomPlaybackSentAtRef.current = nowMs;
+    },
+    [],
+  );
+
+  const handleSendWatchRoomChatMessage = React.useCallback((content: string) => {
+    const room = activeWatchRoomRef.current;
+    const currentSocket = socketRef.current;
+    if (!room || !currentSocket || currentSocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    currentSocket.send(
+      JSON.stringify({
+        action: "watch_room_chat_send",
+        chat_id: room.chat_id,
+        room_id: room.id,
+        content,
+      }),
+    );
+  }, []);
+
+  const handleSendWatchRoomReaction = React.useCallback((emoji: string) => {
+    const room = activeWatchRoomRef.current;
+    const currentSocket = socketRef.current;
+    if (!room || !currentSocket || currentSocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const content = `${WATCH_ROOM_REACTION_PREFIX}${emoji}`;
+    currentSocket.send(
+      JSON.stringify({
+        action: "watch_room_chat_send",
+        chat_id: room.chat_id,
+        room_id: room.id,
+        content,
+      }),
+    );
+  }, []);
+
+  const onSendWatchRoomChatMessage = handleSendWatchRoomChatMessage;
+  const onSendWatchRoomReaction = handleSendWatchRoomReaction;
+
+  React.useEffect(() => {
+    socketRef.current = socket;
+  }, [socket]);
+
+  React.useEffect(() => {
+    isSocketConnectedRef.current = isSocketConnected;
+  }, [isSocketConnected]);
+
+  React.useEffect(() => {
+    syncedToUserIdRef.current = syncedToUserId;
+  }, [syncedToUserId]);
+
+  React.useEffect(() => {
+    activeWatchRoomIdRef.current = activeWatchRoom?.id ?? null;
+  }, [activeWatchRoom?.id]);
+
+  React.useEffect(() => {
+    activeWatchRoomRef.current = activeWatchRoom;
+  }, [activeWatchRoom]);
+
+  React.useEffect(() => {
+    void AuthApi.getProfile()
+      .then(({ data }) => {
+        setCurrentUserId(data.id);
+        setCurrentUsername(data.username);
+        setYoutubeAccessMode(data.youtube_access_mode ?? "direct");
+        setYoutubeAssistEnabled(Boolean(data.youtube_assisted_enabled));
+        setCanEnableYouTubeAssist(Boolean(data.can_enable_assisted));
+      })
+      .catch(() => undefined);
+  }, [
+    setCanEnableYouTubeAssist,
+    setYoutubeAccessMode,
+    setYoutubeAssistEnabled,
+  ]);
+
+  React.useEffect(() => {
+    void MessengerApi.getAvailableUsers()
+      .then(({ data }) => {
+        setAvailableUsers(data);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom?.id) {
+      return;
+    }
+    const roomId = activeWatchRoom.id;
+    void MessengerApi.getWatchRoomMessages(roomId, 120)
+      .then(({ data }) => {
+        const filteredMessages = data.filter(
+          (message) => !tryExtractWatchRoomReactionEmoji(message.content),
+        );
+        setWatchRoomChatMessagesByRoomId((current) => ({
+          ...current,
+          [roomId]: filteredMessages,
+        }));
+      })
+      .catch(() => undefined);
+  }, [
+    activeWatchRoom?.id,
+    setWatchRoomChatMessagesByRoomId,
+    tryExtractWatchRoomReactionEmoji,
+  ]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom?.id) {
+      lastWatchRoomPlaybackSentAtRef.current = 0;
+    }
+  }, [activeWatchRoom?.id]);
+
+  React.useEffect(() => {
+    if (syncedToUserId === null) {
+      clearSyncEnsureTimeouts();
+    }
+  }, [clearSyncEnsureTimeouts, syncedToUserId]);
+
+  React.useEffect(() => {
+    return () => {
+      clearSyncEnsureTimeouts();
+    };
+  }, [clearSyncEnsureTimeouts]);
+
+  React.useEffect(() => {
+    const roomId = activeWatchRoom?.id;
+    const syncRevision = activeWatchRoom?.sync_revision;
+    const syncCurrentTimeSeconds = activeWatchRoom?.sync_current_time_seconds;
+    const syncIsPlaying = activeWatchRoom?.sync_is_playing;
+    if (
+      roomId === undefined ||
+      syncRevision === undefined ||
+      syncCurrentTimeSeconds === undefined ||
+      syncIsPlaying === undefined
+    ) {
+      return;
+    }
+
+    setWatchRoomPlaybackSeconds(syncCurrentTimeSeconds);
+    if (!syncIsPlaying) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setWatchRoomPlaybackSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    activeWatchRoom?.id,
+    activeWatchRoom?.sync_revision,
+    activeWatchRoom?.sync_current_time_seconds,
+    activeWatchRoom?.sync_is_playing,
+    setWatchRoomPlaybackSeconds,
+  ]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    let pollAttempts = 0;
+    const ensureApiReady = () => {
+      if (window.YT?.Player) {
+        youTubeApiReadyRef.current = true;
+        setIsYouTubeApiReady(true);
+        setIsYouTubeApiBlocked(false);
+        if (pollId) {
+          clearInterval(pollId);
+          pollId = null;
+        }
+        return true;
+      }
+      return false;
+    };
+
+    if (window.YT?.Player) {
+      youTubeApiReadyRef.current = true;
+      setIsYouTubeApiReady(true);
+      setIsYouTubeApiBlocked(false);
+      return;
+    }
+    const existingScript = document.getElementById("youtube-iframe-api");
+    if (existingScript) {
+      window.onYouTubeIframeAPIReady = () => {
+        youTubeApiReadyRef.current = true;
+        setIsYouTubeApiReady(true);
+        setIsYouTubeApiBlocked(false);
+      };
+      if (!ensureApiReady()) {
+        pollId = setInterval(() => {
+          pollAttempts += 1;
+          if (ensureApiReady() || pollAttempts > 60) {
+            if (pollId) {
+              clearInterval(pollId);
+              pollId = null;
+            }
+          }
+        }, 250);
+      }
+      return () => {
+        if (pollId) {
+          clearInterval(pollId);
+        }
+      };
+    }
+
+    const script = document.createElement("script");
+    script.id = "youtube-iframe-api";
+    script.src = "https://www.youtube.com/iframe_api";
+    script.async = true;
+    script.onerror = () => {
+      youTubeApiReadyRef.current = false;
+      setIsYouTubeApiReady(false);
+      setIsYouTubeApiBlocked(true);
+    };
+    script.onload = () => {
+      void ensureApiReady();
+    };
+    document.body.appendChild(script);
+    window.onYouTubeIframeAPIReady = () => {
+      youTubeApiReadyRef.current = true;
+      setIsYouTubeApiReady(true);
+      setIsYouTubeApiBlocked(false);
+    };
+    pollId = setInterval(() => {
+      pollAttempts += 1;
+      if (ensureApiReady() || pollAttempts > 60) {
+        if (pollId) {
+          clearInterval(pollId);
+          pollId = null;
+        }
+      }
+    }, 250);
+
+    return () => {
+      if (pollId) {
+        clearInterval(pollId);
+      }
+    };
+  }, [setIsYouTubeApiBlocked, setIsYouTubeApiReady]);
+
+  React.useEffect(() => {
+    const initialSyncSeconds = activeWatchRoom?.sync_current_time_seconds ?? 0;
+    const initialSyncIsPlaying = activeWatchRoom?.sync_is_playing ?? false;
+    if (youtubeAccessMode === "assisted") {
+      const previousPlayer = youTubePlayerRef.current;
+      if (hasYouTubePlayerMethods(previousPlayer)) {
+        previousPlayer.destroy();
+      }
+      youTubePlayerRef.current = null;
+      setIsYouTubePlayerReady(false);
+      setIsYouTubeApiBlocked(false);
+      return;
+    }
+    if (
+      !youtubePreviewVideoId ||
+      !youTubePlayerHostElement ||
+      !window.YT?.Player ||
+      !isYouTubeApiReady
+    ) {
+      return;
+    }
+
+    setIsYouTubePlayerReady(false);
+    const previousPlayer = youTubePlayerRef.current;
+    if (hasYouTubePlayerMethods(previousPlayer)) {
+      previousPlayer.destroy();
+    }
+    youTubePlayerRef.current = null;
+
+    youTubePlayerHostElement.innerHTML = "";
+    const playerMountNode = document.createElement("div");
+    playerMountNode.style.width = "100%";
+    playerMountNode.style.height = "100%";
+    youTubePlayerHostElement.appendChild(playerMountNode);
+
+    const createdPlayer = new window.YT.Player(playerMountNode, {
+      width: "100%",
+      height: "100%",
+      videoId: youtubePreviewVideoId,
+      playerVars: {
+        autoplay: 1,
+        controls: 1,
+        rel: 0,
+        fs: 0,
+        enablejsapi: 1,
+        origin: window.location.origin,
+        playsinline: 1,
+      },
+      events: {
+        onReady: (event) => {
+          const playerInstance = hasYouTubePlayerMethods(event.target)
+            ? event.target
+            : hasYouTubePlayerMethods(createdPlayer)
+              ? createdPlayer
+              : null;
+          if (!playerInstance) {
+            setIsYouTubePlayerReady(false);
+            setIsYouTubeApiBlocked(true);
+            return;
+          }
+          youTubePlayerRef.current = playerInstance;
+          setIsYouTubePlayerReady(true);
+          setIsYouTubeApiBlocked(false);
+          setSyncedToUserId(null);
+          suppressUnsyncUntilRef.current = Date.now() + 1500;
+          playerInstance.seekTo(initialSyncSeconds, true);
+          if (initialSyncIsPlaying) {
+            playerInstance.playVideo();
+          } else {
+            playerInstance.pauseVideo();
+          }
+        },
+        onError: () => {
+          setIsYouTubePlayerReady(false);
+          setIsYouTubeApiBlocked(true);
+        },
+        onStateChange: (event) => {
+          if (syncedToUserIdRef.current === null) {
+            sendWatchRoomPlaybackUpdate(true);
+            return;
+          }
+          if (Date.now() < suppressUnsyncUntilRef.current) {
+            sendWatchRoomPlaybackUpdate(true);
+            return;
+          }
+          const state = event.data;
+          const unstartedState = -1;
+          const endedState = 0;
+          if (state === unstartedState || state === endedState) {
+            setSyncedToUserId(null);
+          }
+          sendWatchRoomPlaybackUpdate(true);
+        },
+      },
+    });
+    const playerReadyTimeoutId = setTimeout(() => {
+      if (hasYouTubePlayerMethods(youTubePlayerRef.current)) {
+        return;
+      }
+      setIsYouTubePlayerReady(false);
+      setIsYouTubeApiBlocked(true);
+      if (hasYouTubePlayerMethods(createdPlayer)) {
+        createdPlayer.destroy();
+      }
+    }, 10000);
+
+    return () => {
+      clearTimeout(playerReadyTimeoutId);
+      setIsYouTubePlayerReady(false);
+      if (hasYouTubePlayerMethods(youTubePlayerRef.current)) {
+        youTubePlayerRef.current.destroy();
+      }
+      if (hasYouTubePlayerMethods(createdPlayer)) {
+        createdPlayer.destroy();
+      }
+      if (youTubePlayerHostElement) {
+        youTubePlayerHostElement.innerHTML = "";
+      }
+      youTubePlayerRef.current = null;
+    };
+  }, [
+    activeWatchRoom?.id,
+    activeWatchRoom?.sync_current_time_seconds,
+    activeWatchRoom?.sync_is_playing,
+    isYouTubeApiReady,
+    sendWatchRoomPlaybackUpdate,
+    setIsYouTubeApiBlocked,
+    setIsYouTubePlayerReady,
+    setSyncedToUserId,
+    youtubeAccessMode,
+    youtubePreviewVideoId,
+    youTubePlayerHostElement,
+  ]);
+
+  React.useEffect(() => {
+    if (isYouTubePlayerUsable || syncedToUserId === null) {
+      return;
+    }
+    setSyncedToUserId(null);
+  }, [isYouTubePlayerUsable, setSyncedToUserId, syncedToUserId]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom || !isYouTubePlayerUsable || syncedToUserId === null) {
+      return;
+    }
+
+    const targetState = getViewerSyncStates(activeWatchRoom).find(
+      (state) => state.user_id === syncedToUserId,
+    );
+    if (!targetState) {
+      setSyncedToUserId(null);
+      return;
+    }
+
+    const player = youTubePlayerRef.current;
+    if (!hasYouTubePlayerMethods(player)) {
+      return;
+    }
+
+    const expectedSeconds = resolveTargetPlaybackSeconds(targetState);
+    const localSeconds = player.getCurrentTime();
+    const driftSeconds = Math.abs(localSeconds - expectedSeconds);
+    const localIsPlaying =
+      player.getPlayerState() === (window.YT?.PlayerState?.PLAYING ?? 1);
+    const isPlaybackStateMismatched = localIsPlaying !== targetState.is_playing;
+    if (isPlaybackStateMismatched || driftSeconds > 0.75) {
+      void applyTargetSyncStateToPlayer(targetState);
+    }
+  }, [
+    activeWatchRoom,
+    applyTargetSyncStateToPlayer,
+    isYouTubePlayerUsable,
+    resolveTargetPlaybackSeconds,
+    setSyncedToUserId,
+    syncedToUserId,
+  ]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom || !isYouTubePlayerUsable || syncedToUserId === null) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const player = youTubePlayerRef.current;
+      if (!hasYouTubePlayerMethods(player)) {
+        return;
+      }
+
+      const targetState = getViewerSyncStates(activeWatchRoom).find(
+        (state) => state.user_id === syncedToUserId,
+      );
+      if (!targetState) {
+        setSyncedToUserId(null);
+        return;
+      }
+
+      const expectedSeconds = resolveTargetPlaybackSeconds(targetState);
+      const driftSeconds = Math.abs(player.getCurrentTime() - expectedSeconds);
+      if (driftSeconds > 1.3) {
+        setSyncedToUserId(null);
+      }
+    }, 700);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    activeWatchRoom,
+    isYouTubePlayerUsable,
+    resolveTargetPlaybackSeconds,
+    setSyncedToUserId,
+    syncedToUserId,
+  ]);
+
+  React.useEffect(() => {
+    if (!activeWatchRoom || !isYouTubePlayerUsable) {
+      return;
+    }
+    if (
+      !isSocketConnected ||
+      !socketRef.current ||
+      socketRef.current.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+
+    sendWatchRoomPlaybackUpdate(true);
+    const intervalId = setInterval(() => {
+      sendWatchRoomPlaybackUpdate(false);
+    }, 450);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    activeWatchRoom,
+    activeWatchRoom?.id,
+    isSocketConnected,
+    isYouTubePlayerUsable,
+    sendWatchRoomPlaybackUpdate,
   ]);
 
   React.useEffect(() => {
@@ -282,6 +930,42 @@ export default function YouTubeWatchRoomModals({
     };
   }, [isStageFullscreen, markOverlayUiActive]);
 
+  async function handleInviteToWatchRoom() {
+    if (!activeWatchRoom || watchRoomInviteUserId === null) {
+      return;
+    }
+    try {
+      await MessengerApi.inviteToWatchRoom(
+        activeWatchRoom.id,
+        watchRoomInviteUserId,
+      );
+      antdMessage.success("Invitation sent.");
+      setIsWatchRoomInviteModalOpen(false);
+      setWatchRoomInviteUserId(null);
+    } catch {
+      antdMessage.error("Failed to send invitation.");
+    }
+  }
+
+  async function onToggleYouTubeAssistEnabled(enabled: boolean) {
+    try {
+      const { data } = await AuthApi.setYouTubeAssistEnabled(enabled);
+      setYoutubeAssistEnabled(data.youtube_assisted_enabled);
+      setCanEnableYouTubeAssist(data.can_enable_assisted);
+      setYoutubeAccessMode(data.youtube_access_mode);
+      setActiveWatchRoom((current) =>
+        current
+          ? {
+              ...current,
+              youtube_access_mode: data.youtube_access_mode,
+            }
+          : current,
+      );
+    } catch {
+      antdMessage.error("Failed to switch assisting mode.");
+    }
+  }
+
   React.useEffect(() => {
     return () => {
       if (overlayInactivityTimeoutRef.current) {
@@ -311,6 +995,108 @@ export default function YouTubeWatchRoomModals({
     }
     void stage.requestFullscreen().catch(() => undefined);
   }, []);
+
+  const onOpenInviteModal = () => setIsWatchRoomInviteModalOpen(true);
+  const onCloseInviteModal = () => {
+    setIsWatchRoomInviteModalOpen(false);
+    setWatchRoomInviteUserId(null);
+  };
+
+  async function handleCloseWatchRoom() {
+    if (activeWatchRoom) {
+      try {
+        await MessengerApi.leaveWatchRoom(activeWatchRoom.id);
+      } catch {
+        // ignore leave errors
+      }
+    }
+    clearSyncEnsureTimeouts();
+    setIsYouTubePlayerReady(false);
+    setSyncedToUserId(null);
+    setIsWatchRoomInviteModalOpen(false);
+    setWatchRoomInviteUserId(null);
+    setActiveWatchRoom(null);
+    setYoutubePreviewVideoId(null);
+  }
+
+  async function handleSyncWatchRoom(targetUserId: number) {
+    if (
+      !activeWatchRoom ||
+      !hasYouTubePlayerMethods(youTubePlayerRef.current)
+    ) {
+      return;
+    }
+
+    try {
+      clearSyncEnsureTimeouts();
+      setIsWatchRoomSyncing(true);
+      const { data } = await MessengerApi.getWatchRoom(activeWatchRoom.id);
+      const targetState = getViewerSyncStates(data).find(
+        (state) => state.user_id === targetUserId,
+      );
+      if (!targetState) {
+        throw new Error("Target user sync state not found");
+      }
+
+      const didApply = applyTargetSyncStateToPlayer(targetState);
+      if (!didApply) {
+        throw new Error("YouTube player is not ready");
+      }
+
+      setWatchRoomPlaybackSeconds(data.sync_current_time_seconds);
+      setActiveWatchRoom(data);
+      setWatchRoomsByKey((current) => ({
+        ...current,
+        [watchRoomMapKey(data.chat_id, data.youtube_video_id)]: data,
+      }));
+      setSyncedToUserId(targetUserId);
+      const roomId = data.id;
+      [350, 1100, 2200].forEach((delayMs) => {
+        const timeoutId = setTimeout(() => {
+          if (
+            syncedToUserIdRef.current !== targetUserId ||
+            activeWatchRoomIdRef.current !== roomId
+          ) {
+            return;
+          }
+          void MessengerApi.getWatchRoom(roomId)
+            .then(({ data: latestRoom }) => {
+              if (
+                syncedToUserIdRef.current !== targetUserId ||
+                activeWatchRoomIdRef.current !== roomId
+              ) {
+                return;
+              }
+              const latestTargetState = getViewerSyncStates(latestRoom).find(
+                (state) => state.user_id === targetUserId,
+              );
+              if (!latestTargetState) {
+                return;
+              }
+              void applyTargetSyncStateToPlayer(latestTargetState);
+              setActiveWatchRoom(latestRoom);
+              setWatchRoomsByKey((current) => ({
+                ...current,
+                [watchRoomMapKey(
+                  latestRoom.chat_id,
+                  latestRoom.youtube_video_id,
+                )]: latestRoom,
+              }));
+            })
+            .catch(() => undefined);
+        }, delayMs);
+        syncEnsureTimeoutsRef.current.push(timeoutId);
+      });
+    } catch {
+      setSyncedToUserId(null);
+    } finally {
+      setIsWatchRoomSyncing(false);
+    }
+  }
+
+  const onCloseWatchRoom = handleCloseWatchRoom;
+  const onSyncTargetSelect = handleSyncWatchRoom;
+  const onInviteConfirm = handleInviteToWatchRoom;
 
   return (
     <>
@@ -760,7 +1546,7 @@ export default function YouTubeWatchRoomModals({
                       ? `watch-room-invite-item watch-room-invite-item-mono ${isSelected ? "watch-room-invite-item-selected watch-room-invite-item-selected-mono" : ""}`
                       : `watch-room-invite-item ${isSelected ? "watch-room-invite-item-selected" : ""}`
                   }
-                  onClick={() => onInviteUserSelect(user.id)}
+                  onClick={() => setWatchRoomInviteUserId(user.id)}
                 >
                   <div
                     style={{
