@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import type { SetStateAction } from "react";
 import { useMessengerStore } from "@/lib/stores/messenger";
+import { ALL_CHATS_GROUP_ID } from "@/app/messenger/constants";
 
 export function useChatsSetter(): (chats: SetStateAction<ChatType[]>) => void {
   return useMessengerStore((state) => state.setChats);
@@ -22,7 +23,13 @@ export function useChats(): ChatType[] {
 
 export function useChatsByFolder(): ChatType[] {
   const folder = useSelectedFolder();
-  return useChats().filter((chat) => folder ? folder?.chat_ids.includes(chat.id) : true);
+  const chats = useChats();
+
+  if (!folder || folder.id === ALL_CHATS_GROUP_ID) {
+    return chats;
+  }
+
+  return chats.filter((chat) => folder.chat_ids.includes(chat.id));
 }
 
 export function useSelectedChatSetter(): (

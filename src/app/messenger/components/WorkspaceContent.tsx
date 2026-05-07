@@ -2,13 +2,8 @@
 "use client";
 
 import React, { Fragment } from "react";
-import { Button, Dropdown, Image, Typography } from "antd";
-import {
-  EnvironmentOutlined,
-  InboxOutlined,
-  LoadingOutlined,
-  StopOutlined,
-} from "@ant-design/icons";
+import { Dropdown, Image, Typography } from "antd";
+import { InboxOutlined, LoadingOutlined } from "@ant-design/icons";
 import { Content } from "antd/lib/layout/layout";
 import type { MenuProps } from "antd";
 import type { ChatMessageType, WatchRoomType } from "@/lib/types";
@@ -25,7 +20,6 @@ import {
 } from "../utils";
 import ChatExpensesPanel from "./ChatExpensesPanel";
 import ForwardedMessageBlock from "./messages/ForwardedMessageBlock";
-import LiveLocationsMap from "./messages/LiveLocationsMap";
 import MessageAttachmentContent from "./MessageAttachmentContent";
 import MessageLinkPreviewBlock from "./messages/MessageLinkPreviewBlock";
 import MessageMetaRow from "./messages/MessageMetaRow";
@@ -38,11 +32,9 @@ import {
   useExpensesPanelWidth,
   useIsExpensesViewOpen,
   useIsMessagesNearBottomSetter,
-  useIsSocketConnected,
   useMessengerTheme,
   useSelectedChat,
   useSelectedChatId,
-  useSocket,
   useWatchRoomsByKey,
 } from "@/hooks/features/messenger/chats";
 
@@ -56,14 +48,11 @@ type WorkspaceContentProps = {
   handleMessagesDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
   handleMessagesDrop: (event: React.DragEvent<HTMLDivElement>) => Promise<void>;
   isMessagesDragOver: boolean;
-  activeLiveLocationsForSelectedChat: any[];
   selectedChatLiveRemainingLabel: string | null;
   selectedChatLiveStatus: {
     isActive: boolean;
     expiresAt: number | null;
   } | null | undefined;
-  liveLocationMenuItems: MenuProps["items"];
-  handleLiveLocationMenuClick: MenuProps["onClick"];
   handleStopLiveLocationShare: () => void;
   isMessagesLoading: boolean;
   isOlderMessagesLoading: boolean;
@@ -99,11 +88,8 @@ export default function WorkspaceContent({
   handleMessagesDragLeave,
   handleMessagesDrop,
   isMessagesDragOver,
-  activeLiveLocationsForSelectedChat,
   selectedChatLiveRemainingLabel,
   selectedChatLiveStatus,
-  liveLocationMenuItems,
-  handleLiveLocationMenuClick,
   handleStopLiveLocationShare,
   isMessagesLoading,
   isOlderMessagesLoading,
@@ -138,16 +124,12 @@ export default function WorkspaceContent({
     return messagesById;
   }, [selectedMessages]);
   const messengerTheme = useMessengerTheme();
-  const socket = useSocket();
-  const isSocketConnected = useIsSocketConnected();
   const setIsMessagesNearBottom = useIsMessagesNearBottomSetter();
   const watchRoomsByKey: Record<string, WatchRoomType> = useWatchRoomsByKey();
   const { linkPreviewByUrl } = useLinkPreviews(selectedMessages);
   const isExpensesViewOpen = useIsExpensesViewOpen();
   const expensesPanelWidth = useExpensesPanelWidth();
   const isExpenseFeatureEnabled = ENABLE_EXPENSE_SPLIT_FEATURE;
-  const isSocketReady =
-    isSocketConnected && socket?.readyState === WebSocket.OPEN;
   const handleMessagesScroll = React.useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
       const container = event.currentTarget;
@@ -225,81 +207,6 @@ export default function WorkspaceContent({
           </div>
         ) : null}
         {selectedChat ? (
-          <div
-            style={{
-              border: "1px solid var(--mess-soft-border)",
-              borderRadius: "10px",
-              overflow: "hidden",
-              background: "var(--mess-soft-card-bg)",
-              marginBottom: "10px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "10px",
-                padding: "8px 10px",
-              }}
-            >
-              <Text style={{ color: "var(--mess-text)", fontWeight: 600 }}>
-                Map room
-              </Text>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <Text
-                  style={{
-                    color: "var(--mess-muted-text)",
-                    fontSize: "12px",
-                  }}
-                >
-                  {activeLiveLocationsForSelectedChat.length} active
-                  {selectedChatLiveRemainingLabel
-                    ? ` - ${selectedChatLiveRemainingLabel}`
-                    : ""}
-                </Text>
-                {selectedChatLiveStatus?.isActive ? (
-                  <Button
-                    size="small"
-                    danger
-                    icon={<StopOutlined />}
-                    onClick={() => handleStopLiveLocationShare()}
-                    disabled={!isSocketReady}
-                  >
-                    Stop
-                  </Button>
-                ) : (
-                  <Dropdown
-                    trigger={["click"]}
-                    placement="bottomRight"
-                    menu={{
-                      items: liveLocationMenuItems,
-                      onClick: handleLiveLocationMenuClick,
-                    }}
-                    disabled={!isSocketReady}
-                  >
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<EnvironmentOutlined />}
-                      disabled={!isSocketReady}
-                    >
-                      Share live
-                    </Button>
-                  </Dropdown>
-                )}
-              </div>
-            </div>
-            <LiveLocationsMap shares={activeLiveLocationsForSelectedChat} />
-          </div>
-        ) : null}
-        {selectedChat ? (
           isMessagesLoading ? (
             "Loading messages..."
           ) : selectedMessages.length > 0 ? (
@@ -355,10 +262,10 @@ export default function WorkspaceContent({
                       key: "answer",
                       label: "Answer",
                     },
-                    {
-                      key: "forward",
-                      label: "Forward",
-                    },
+                    // {  // TODO: implement forwarding
+                    //   key: "forward",
+                    //   label: "Forward",
+                    // },
                     ...(chatMessage.is_own
                       ? [
                           {

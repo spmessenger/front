@@ -1,4 +1,5 @@
 import axios from "@/lib/axios";
+import { ACCESS_TOKEN_STORAGE_KEY } from "@/lib/axios";
 import { WS_BASE_URL } from "@/lib/config";
 import type {
   AttachmentCompletePayload,
@@ -26,7 +27,17 @@ import type {
 
 export default class MessengerApi {
   static getMessagesSocket() {
-    return new WebSocket(`${WS_BASE_URL}/api/ws/chats`);
+    const socketUrl = new URL(`${WS_BASE_URL}/api/ws/chats`);
+    const accessToken =
+      typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+
+    if (accessToken) {
+      socketUrl.searchParams.set("access_token", accessToken);
+    }
+
+    return new WebSocket(socketUrl);
   }
 
   static getChats() {

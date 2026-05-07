@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
+import { Button } from "antd";
 
 const baseText = "Your";
 const words = ["style", "vibe", "messenger"];
@@ -60,8 +61,8 @@ export default function Home() {
           <span className={styles.cursor}>|</span>
         </h1>
         <p className={styles.subtitle}>Customize your messaging workspace</p>
-        <Link href="/login" className={styles.enterButton}>
-          Enter
+        <Link href="/login">
+          <Button type="primary" size="large" style={{marginTop: 20}}>Enter</Button>
         </Link>
       </section>
     </main>

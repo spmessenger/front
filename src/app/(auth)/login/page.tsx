@@ -38,7 +38,7 @@ export default function Login() {
     undefined;
 
   return (
-    <div className="auth-mono-page">
+    <div className="auth-mono-page" style={{ height: "100vh", width: "100vw" }}>
       <Card
         className="auth-mono-card"
         title={<span className="auth-mono-text">Sign in</span>}

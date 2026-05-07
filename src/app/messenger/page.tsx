@@ -7,6 +7,7 @@ import YouTubeWatchRoomModals from "./components/YouTubeWatchRoomModals";
 import ExpenseSplitModal from "./components/ExpenseSplitModal";
 import Workspace from "./components/Workspace";
 import {
+  ALL_CHATS_GROUP_ID,
   CHAT_GROUPS_CACHE_STORAGE_KEY,
   CHATS_CACHE_STORAGE_KEY,
   ENABLE_EXPENSE_SPLIT_FEATURE,
@@ -62,7 +63,6 @@ import {
   useIsChatGroupsSyncingSetter,
   useIsChatsSyncingSetter,
   useMessengerTheme,
-  useMessengerThemeSetter,
   useSyncedToUserId,
   useSyncedToUserIdSetter,
   useWatchRoomChatMessagesByRoomIdSetter,
@@ -141,7 +141,6 @@ export default function Messenger() {
   const isSocketConnected = useIsSocketConnected();
   const isMessagesNearBottom = useIsMessagesNearBottom();
   const messengerTheme = useMessengerTheme();
-  const setMessengerTheme = useMessengerThemeSetter();
   const setIsChatsSyncing = useIsChatsSyncingSetter();
   const setIsChatGroupsSyncing = useIsChatGroupsSyncingSetter();
   const hasChatsSyncedOnce = useHasChatsSyncedOnce();
@@ -650,15 +649,6 @@ export default function Messenger() {
   ]);
 
   React.useEffect(() => {
-    const storedTheme = window.localStorage.getItem(
-      MESSENGER_THEME_STORAGE_KEY,
-    );
-    if (storedTheme === "retro" || storedTheme === "mono") {
-      setMessengerTheme(storedTheme);
-    }
-  }, [setMessengerTheme]);
-
-  React.useEffect(() => {
     window.localStorage.setItem(MESSENGER_THEME_STORAGE_KEY, messengerTheme);
   }, [messengerTheme]);
 
@@ -711,12 +701,18 @@ export default function Messenger() {
 
     const allowedChatIds = new Set(chatsForFolders.map((chat) => chat.id));
     setChatFolders((currentFolders) =>
-      currentFolders.map((folder) => ({
-        ...folder,
-        chat_ids: folder.chat_ids.filter((chatId) =>
-          allowedChatIds.has(chatId),
-        ),
-      })),
+      currentFolders.map((folder) => {
+        if (folder.id === ALL_CHATS_GROUP_ID) {
+          return folder;
+        }
+
+        return {
+          ...folder,
+          chat_ids: folder.chat_ids.filter((chatId) =>
+            allowedChatIds.has(chatId),
+          ),
+        };
+      }),
     );
   }, [
     chatsForFolders,

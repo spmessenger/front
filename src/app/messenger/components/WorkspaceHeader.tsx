@@ -10,8 +10,6 @@ import {
   useIsExpensesViewOpenSetter,
   useIsChatGroupsSyncing,
   useIsChatsSyncing,
-  useMessengerTheme,
-  useMessengerThemeSetter,
   useSelectedChat,
   useSelectedChatId,
 } from "@/hooks/features/messenger/chats";
@@ -23,8 +21,6 @@ export default function WorkspaceHeader() {
   const setModal = useModalSetter();
   const selectedChat = useSelectedChat();
   const selectedChatId = useSelectedChatId();
-  const messengerTheme = useMessengerTheme();
-  const setMessengerTheme = useMessengerThemeSetter();
   const isChatsSyncing = useIsChatsSyncing();
   const isChatGroupsSyncing = useIsChatGroupsSyncing();
   const setIsExpenseModalOpen = useIsExpenseModalOpenSetter();
@@ -44,12 +40,6 @@ export default function WorkspaceHeader() {
       return;
     }
     setIsExpensesViewOpen((current) => !current);
-  }
-
-  function handleToggleMessengerTheme() {
-    setMessengerTheme((currentTheme) =>
-      currentTheme === "retro" ? "mono" : "retro",
-    );
   }
 
   function handleSelectedChatInfoModal() {
@@ -180,18 +170,6 @@ export default function WorkspaceHeader() {
           hidden={!isExpenseFeatureEnabled}
         >
           Expenses
-        </Button>
-        <Button
-          type="default"
-          size="small"
-          className="retro-pixel-text"
-          style={{ marginLeft: "8px" }}
-          onClick={(event) => {
-            event.stopPropagation();
-            handleToggleMessengerTheme();
-          }}
-        >
-          {messengerTheme === "retro" ? "Mono" : "Retro"}
         </Button>
       </div>
     </Header>

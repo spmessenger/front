@@ -10,7 +10,6 @@ export default function MessengerLayout({
     <Flex
       style={{
         height: "100svh",
-        padding: "16px",
         boxSizing: "border-box",
         overflow: "hidden",
         alignItems: "stretch",

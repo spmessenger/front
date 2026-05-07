@@ -94,12 +94,7 @@ function GeneralChatItem({
             style={{ minWidth: 0, flex: 1 }}
           >
             <Flex align="center" gap={6} style={{ minWidth: 0 }}>
-              <Text
-                strong
-                ellipsis
-                className="retro-pixel-text"
-                style={{ display: "block", minWidth: 0 }}
-              >
+              <Text strong ellipsis style={{ display: "block", minWidth: 0 }}>
                 {chat.title}
               </Text>
               {showPinnedIcon ? (

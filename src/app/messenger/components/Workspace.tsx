@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Button, Layout, Typography, message as antdMessage } from "antd";
-import type { MenuProps } from "antd";
 import WorkspaceHeader from "./WorkspaceHeader";
 import WorkspaceContent from "./WorkspaceContent";
 import WorkspaceFooter from "./WorkspaceFooter";
@@ -54,7 +53,6 @@ import MessengerApi from "@/lib/api/messenger";
 import { API_BASE_URL } from "@/lib/config";
 import type {
   ChatMessageType,
-  LiveLocationShareType,
   WatchRoomType,
 } from "@/lib/types";
 
@@ -114,9 +112,6 @@ export default function Workspace() {
   const [liveLocationNowMs, setLiveLocationNowMs] = React.useState(() =>
     Date.now(),
   );
-  const [liveLocationsByChatId, setLiveLocationsByChatId] = React.useState<
-    Record<number, Record<number, LiveLocationShareType>>
-  >({});
   const [liveLocationStatusByChatId, setLiveLocationStatusByChatId] =
     React.useState<
       Record<number, { isActive: boolean; expiresAt: number | null }>
@@ -276,15 +271,6 @@ export default function Workspace() {
     return Math.max(280, Math.min(maxWidth, Math.round(width)));
   }, []);
 
-  const activeLiveLocationsForSelectedChat = React.useMemo(() => {
-    if (selectedChatId === null) {
-      return [] as LiveLocationShareType[];
-    }
-    return Object.values(liveLocationsByChatId[selectedChatId] ?? {}).sort(
-      (left, right) => left.user_id - right.user_id,
-    );
-  }, [liveLocationsByChatId, selectedChatId]);
-
   const selectedChatLiveStatus =
     selectedChatId === null
       ? undefined
@@ -319,15 +305,6 @@ export default function Workspace() {
     }
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, [selectedChatLiveRemainingSeconds, selectedChatLiveStatus]);
-  const liveLocationMenuItems = React.useMemo<MenuProps["items"]>(
-    () => [
-      { key: "900", label: "15 minutes" },
-      { key: "3600", label: "1 hour" },
-      { key: "until_cancel", label: "Until cancel" },
-    ],
-    [],
-  );
-
   React.useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
   }, [selectedChatId]);
@@ -584,13 +561,6 @@ export default function Workspace() {
 
       if (payload.type === "live_location_updated") {
         const nextShare = payload.share;
-        setLiveLocationsByChatId((current) => ({
-          ...current,
-          [nextShare.chat_id]: {
-            ...(current[nextShare.chat_id] ?? {}),
-            [nextShare.user_id]: nextShare,
-          },
-        }));
         if (
           currentUserIdRef.current !== null &&
           nextShare.user_id === currentUserIdRef.current
@@ -608,23 +578,6 @@ export default function Workspace() {
       }
 
       if (payload.type === "live_location_stopped") {
-        setLiveLocationsByChatId((current) => {
-          const existingChatShares = current[payload.chat_id] ?? {};
-          if (!existingChatShares[payload.user_id]) {
-            return current;
-          }
-          const nextChatShares = { ...existingChatShares };
-          delete nextChatShares[payload.user_id];
-          if (Object.keys(nextChatShares).length === 0) {
-            const next = { ...current };
-            delete next[payload.chat_id];
-            return next;
-          }
-          return {
-            ...current,
-            [payload.chat_id]: nextChatShares,
-          };
-        });
         if (
           currentUserIdRef.current !== null &&
           payload.user_id === currentUserIdRef.current
@@ -1337,18 +1290,6 @@ export default function Workspace() {
     antdMessage.success("Live location sharing started.");
   }
 
-  const handleLiveLocationMenuClick: MenuProps["onClick"] = ({ key }) => {
-    if (key === "until_cancel") {
-      handleStartLiveLocationShare(null);
-      return;
-    }
-    const durationSeconds = Number(key);
-    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
-      return;
-    }
-    handleStartLiveLocationShare(durationSeconds);
-  };
-
   function handleSendMessage(text: string): boolean {
     if (selectedChatId === null || !text.trim()) {
       return false;
@@ -1838,11 +1779,8 @@ export default function Workspace() {
         handleMessagesDragLeave={handleMessagesDragLeave}
         handleMessagesDrop={handleMessagesDrop}
         isMessagesDragOver={isMessagesDragOver}
-        activeLiveLocationsForSelectedChat={activeLiveLocationsForSelectedChat}
         selectedChatLiveRemainingLabel={selectedChatLiveRemainingLabel}
         selectedChatLiveStatus={selectedChatLiveStatus}
-        liveLocationMenuItems={liveLocationMenuItems}
-        handleLiveLocationMenuClick={handleLiveLocationMenuClick}
         handleStopLiveLocationShare={handleStopLiveLocationShare}
         isMessagesLoading={isMessagesLoading}
         isOlderMessagesLoading={isOlderMessagesLoading}

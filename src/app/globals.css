@@ -24,7 +24,10 @@ body {
     linear-gradient(135deg, var(--background-alt), var(--background)),
     linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
-  background-size: auto, 28px 28px, 28px 28px;
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px;
   font-family: var(--font-pixel), monospace;
   font-size: 12px;
   line-height: 1.45;
@@ -124,7 +127,9 @@ a {
 .auth-mono-page *::-webkit-scrollbar-track,
 .ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-track,
 .watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-track,
-.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-track {
+.watch-room-reaction-popover-mono
+  .ant-popover-inner
+  *::-webkit-scrollbar-track {
   background: #0e1013;
 }
 
@@ -132,7 +137,9 @@ a {
 .auth-mono-page *::-webkit-scrollbar-thumb,
 .ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-thumb,
 .watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-thumb,
-.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-thumb {
+.watch-room-reaction-popover-mono
+  .ant-popover-inner
+  *::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.32);
   border: 2px solid #0e1013;
   border-radius: 999px;
@@ -140,9 +147,15 @@ a {
 
 .messenger-theme-mono *::-webkit-scrollbar-thumb:hover,
 .auth-mono-page *::-webkit-scrollbar-thumb:hover,
-.ant-modal.watch-room-modal-mono .ant-modal-content *::-webkit-scrollbar-thumb:hover,
-.watch-room-sync-dropdown-mono .ant-dropdown-menu *::-webkit-scrollbar-thumb:hover,
-.watch-room-reaction-popover-mono .ant-popover-inner *::-webkit-scrollbar-thumb:hover {
+.ant-modal.watch-room-modal-mono
+  .ant-modal-content
+  *::-webkit-scrollbar-thumb:hover,
+.watch-room-sync-dropdown-mono
+  .ant-dropdown-menu
+  *::-webkit-scrollbar-thumb:hover,
+.watch-room-reaction-popover-mono
+  .ant-popover-inner
+  *::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.48);
 }
 
@@ -206,7 +219,9 @@ a {
 }
 
 .messenger-mono-attach-menu .ant-dropdown-menu-item,
-.messenger-mono-attach-menu .ant-dropdown-menu-item .ant-dropdown-menu-title-content,
+.messenger-mono-attach-menu
+  .ant-dropdown-menu-item
+  .ant-dropdown-menu-title-content,
 .messenger-mono-attach-menu .ant-dropdown-menu-item .anticon {
   color: #ffffff !important;
   font-family: var(--font-geist-mono), monospace !important;
@@ -225,7 +240,9 @@ a {
 }
 
 .watch-room-sync-dropdown-mono .ant-dropdown-menu-item,
-.watch-room-sync-dropdown-mono .ant-dropdown-menu-item .ant-dropdown-menu-title-content,
+.watch-room-sync-dropdown-mono
+  .ant-dropdown-menu-item
+  .ant-dropdown-menu-title-content,
 .watch-room-sync-dropdown-mono .ant-dropdown-menu-item .anticon {
   color: #ffffff !important;
   font-family: var(--font-geist-mono), monospace !important;
@@ -237,7 +254,6 @@ a {
 }
 
 .auth-mono-page {
-  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -407,7 +423,10 @@ a {
   color: #ffffff !important;
 }
 
-.auth-mono-page .auth-mono-form .ant-input-affix-wrapper .ant-input-password-icon,
+.auth-mono-page
+  .auth-mono-form
+  .ant-input-affix-wrapper
+  .ant-input-password-icon,
 .auth-mono-page .auth-mono-form .ant-input-affix-wrapper .anticon {
   color: rgba(255, 255, 255, 0.7) !important;
 }
@@ -723,34 +742,49 @@ a {
   transition: transform 0.22s ease;
 }
 
-.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
-.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-panel-hoverable:hover,
-.watch-room-stage:fullscreen .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage.watch-room-stage-fullscreen
+  .watch-room-chat-hover-zone:hover
+  ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage.watch-room-stage-fullscreen
+  .watch-room-chat-panel-hoverable:hover,
+.watch-room-stage:fullscreen
+  .watch-room-chat-hover-zone:hover
+  ~ .watch-room-chat-panel-hoverable,
 .watch-room-stage:fullscreen .watch-room-chat-panel-hoverable:hover {
   transform: translateX(0);
 }
 
-.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-player-fs-btn {
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive
+  .watch-room-player-fs-btn {
   opacity: 0;
   pointer-events: none;
 }
 
-.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-hover-zone {
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive
+  .watch-room-chat-hover-zone {
   opacity: 0;
   pointer-events: auto;
 }
 
-.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-panel-hoverable {
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive
+  .watch-room-chat-panel-hoverable {
   transform: translateX(100%);
 }
 
-.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-hover-zone:hover ~ .watch-room-chat-panel-hoverable,
-.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive .watch-room-chat-panel-hoverable:hover {
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive
+  .watch-room-chat-hover-zone:hover
+  ~ .watch-room-chat-panel-hoverable,
+.watch-room-stage.watch-room-stage-fullscreen.watch-room-ui-inactive
+  .watch-room-chat-panel-hoverable:hover {
   transform: translateX(0);
 }
 
-.watch-room-stage.watch-room-stage-fullscreen .watch-room-chat-panel-hoverable .watch-room-chat-list,
-.watch-room-stage:fullscreen .watch-room-chat-panel-hoverable .watch-room-chat-list {
+.watch-room-stage.watch-room-stage-fullscreen
+  .watch-room-chat-panel-hoverable
+  .watch-room-chat-list,
+.watch-room-stage:fullscreen
+  .watch-room-chat-panel-hoverable
+  .watch-room-chat-list {
   max-height: none;
 }
 

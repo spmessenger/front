@@ -124,7 +124,7 @@ export const useMessengerStore = create<MessengerStore>((set) => ({
   isChatGroupsSyncing: false,
   hasChatsSyncedOnce: false,
   hasChatGroupsSyncedOnce: false,
-  messengerTheme: "retro",
+  messengerTheme: "mono",
   isSocketConnected: false,
   socket: null,
   isMessagesNearBottom: true,
