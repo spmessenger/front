@@ -47,6 +47,12 @@ export interface ChatMessageType {
   forwarded_from_author?: string;
   forwarded_from_author_avatar_url?: string;
   forwarded_from_content?: string;
+  metadata?: {
+    youtube?: {
+      room_id: number;
+      youtube_video_id: string;
+    };
+  };
 }
 
 export type ChatMessageContentType = "text" | "image" | "video" | "document" | "voice";
@@ -88,6 +94,12 @@ export interface ChatMessageApiType {
   content_type?: ChatMessageContentType | null;
   attachment?: ChatAttachmentApiType | null;
   attachment_group_id?: string | null;
+  metadata?: {
+    youtube?: {
+      room_id: number;
+      youtube_video_id: string;
+    };
+  } | null;
   created_at_timestamp: number;
   is_own: boolean;
 }
@@ -241,7 +253,7 @@ export interface CreateGroupPayload {
 }
 
 export interface ChatFolderType {
-  unread_messages_count: any;
+  unread_messages_count: number;
   id: number;
   title: string;
   chat_ids: number[];

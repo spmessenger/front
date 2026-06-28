@@ -44,9 +44,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${baloo.variable} ${pressStart2P.variable}`}
       >
-        <AntdRegistry>
-          <ThemedConfigProvider>{children}</ThemedConfigProvider>
-        </AntdRegistry>
+        <ConfigProvider>
+          <AntdRegistry>
+            <ThemedConfigProvider>{children}</ThemedConfigProvider>
+          </AntdRegistry>
+        </ConfigProvider>
       </body>
     </html>
   );

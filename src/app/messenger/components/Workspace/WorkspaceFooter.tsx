@@ -2,9 +2,9 @@
 
 import React from "react";
 import { Footer } from "antd/lib/layout/layout";
-import MessageComposer from "./MessageComposer";
+import MessageComposer from "../MessageComposer";
 import type { ChatMessageType } from "@/lib/types";
-import type { AttachmentPickerKind } from "../types";
+import type { AttachmentPickerKind } from "../../types";
 import { useSelectedChat } from "@/hooks/features/messenger/chats";
 
 interface WorkspaceFooterProps {
@@ -44,7 +44,7 @@ export default function WorkspaceFooter({
           onSendAttachmentBatch={onSendAttachmentBatch}
         />
       ) : (
-        "No active chat"
+        <span style={{ color: "var(--mess-muted-text)" }}>No active chat</span>
       )}
     </Footer>
   );

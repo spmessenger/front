@@ -17,16 +17,18 @@ import {
   resolveMessageAuthor,
   shortenText,
   watchRoomMapKey,
-} from "../utils";
-import ChatExpensesPanel from "./ChatExpensesPanel";
-import ForwardedMessageBlock from "./messages/ForwardedMessageBlock";
-import MessageAttachmentContent from "./MessageAttachmentContent";
-import MessageLinkPreviewBlock from "./messages/MessageLinkPreviewBlock";
-import MessageMetaRow from "./messages/MessageMetaRow";
-import MessageTextBlock from "./messages/MessageTextBlock";
-import ReplyReferenceBlock from "./messages/ReplyReferenceBlock";
-import { useLinkPreviews } from "../hooks/useLinkPreviews";
-import { ENABLE_EXPENSE_SPLIT_FEATURE } from "../constants";
+} from "../../utils";
+import ChatExpensesPanel from "../ChatExpensesPanel";
+import MessageAttachmentContent from "../MessageAttachmentContent";
+import {
+  ForwardedMessageBlock,
+  MessageLinkPreviewBlock,
+  MessageMetaRow,
+  MessageTextBlock,
+  ReplyReferenceBlock,
+} from "../messages";
+import { useLinkPreviews } from "../../hooks";
+import { ENABLE_EXPENSE_SPLIT_FEATURE } from "../../constants";
 import {
   useChatMessages,
   useExpensesPanelWidth,
@@ -151,6 +153,13 @@ export default function WorkspaceContent({
     },
     [onRequestOlderMessages, setIsMessagesNearBottom],
   );
+  const emptyStateStyle = React.useMemo<React.CSSProperties>(
+    () => ({
+      color: "var(--mess-muted-text)",
+      display: "block",
+    }),
+    [],
+  );
 
   return (
     <div style={{ display: "flex", minHeight: 0, flex: 1 }}>
@@ -208,7 +217,7 @@ export default function WorkspaceContent({
         ) : null}
         {selectedChat ? (
           isMessagesLoading ? (
-            "Loading messages..."
+            <Text style={emptyStateStyle}>Loading messages...</Text>
           ) : selectedMessages.length > 0 ? (
             <Fragment>
               {isOlderMessagesLoading ? (
@@ -280,9 +289,9 @@ export default function WorkspaceContent({
                     isGroupedMediaMessage(chatMessage);
                   const messageUrls = extractUrls(chatMessage.text);
                   const primaryMessageUrl = messageUrls[0] ?? null;
-                  const youtubeVideoId = extractYouTubeVideoId(
-                    chatMessage.text,
-                  );
+                  const youtubeVideoId =
+                    chatMessage.metadata?.youtube?.youtube_video_id ??
+                    extractYouTubeVideoId(chatMessage.text);
                   const primaryLinkPreview = primaryMessageUrl
                     ? linkPreviewByUrl[primaryMessageUrl]
                     : undefined;
@@ -543,10 +552,14 @@ export default function WorkspaceContent({
               </Image.PreviewGroup>
             </Fragment>
           ) : (
-            "No messages yet. Send the first one."
+            <Text style={emptyStateStyle}>
+              No messages yet. Send the first one.
+            </Text>
           )
         ) : (
-          "Choose a chat from the list to start messaging."
+          <Text style={emptyStateStyle}>
+            Choose a chat from the list to start messaging.
+          </Text>
         )}
       </Content>
       {isExpenseFeatureEnabled && isExpensesViewOpen ? (

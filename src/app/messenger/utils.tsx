@@ -97,6 +97,7 @@ export function mapApiMessage(message: ChatMessageApiType): ChatMessageType {
     forwarded_from_author: message.forwarded_from_author ?? undefined,
     forwarded_from_author_avatar_url: message.forwarded_from_author_avatar_url ?? undefined,
     forwarded_from_content: message.forwarded_from_content ?? undefined,
+    metadata: message.metadata ?? undefined,
   };
 }
 

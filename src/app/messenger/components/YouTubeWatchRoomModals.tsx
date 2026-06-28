@@ -4,6 +4,7 @@ import React from "react";
 import {
   Avatar,
   Button,
+  ConfigProvider,
   Dropdown,
   Input,
   Modal as AntdModal,
@@ -30,8 +31,6 @@ import {
   useIsWatchRoomSyncingSetter,
   useIsYouTubeApiBlocked,
   useIsYouTubeApiBlockedSetter,
-  useIsYouTubeApiReady,
-  useIsYouTubeApiReadySetter,
   useIsYouTubePlayerReady,
   useIsYouTubePlayerReadySetter,
   useMessengerTheme,
@@ -59,10 +58,9 @@ import type {
 } from "@/lib/types";
 import type { MessengerTheme, YouTubePlayerLike } from "../types";
 import { hasYouTubePlayerMethods } from "../types";
-import { API_BASE_URL } from "@/lib/config";
 import AuthApi from "@/lib/api/auth";
 import MessengerApi from "@/lib/api/messenger";
-import YouTube, { YouTubePlayer } from "react-youtube";
+import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import { getViewerSyncStates, watchRoomMapKey } from "../utils";
 
 const { Text } = Typography;
@@ -92,8 +90,6 @@ export default function YouTubeWatchRoomModals() {
   const setIsWatchRoomSyncing = useIsWatchRoomSyncingSetter();
   const isYouTubeApiBlocked = useIsYouTubeApiBlocked();
   const setIsYouTubeApiBlocked = useIsYouTubeApiBlockedSetter();
-  const isYouTubeApiReady = useIsYouTubeApiReady();
-  const setIsYouTubeApiReady = useIsYouTubeApiReadySetter();
   const isYouTubePlayerReady = useIsYouTubePlayerReady();
   const setIsYouTubePlayerReady = useIsYouTubePlayerReadySetter();
   const syncedToUserId = useSyncedToUserId();
@@ -121,13 +117,9 @@ export default function YouTubeWatchRoomModals() {
     null,
   );
   const [availableUsers, setAvailableUsers] = React.useState<ContactType[]>([]);
-  const [youTubePlayerHostElement, setYouTubePlayerHostElement] =
-    React.useState<HTMLIFrameElement | null>(null);
   const [watchRoomChatDraft, setWatchRoomChatDraft] = React.useState("");
   const [isStageFullscreen, setIsStageFullscreen] = React.useState(false);
   const [isOverlayUiVisible, setIsOverlayUiVisible] = React.useState(true);
-  const [isAssistedIframeFallbackActive, setIsAssistedIframeFallbackActive] =
-    React.useState(false);
   const youTubePlayerRef = React.useRef<YouTubePlayerLike | null>(null);
   const socketRef = React.useRef<WebSocket | null>(null);
   const activeWatchRoomRef = React.useRef<WatchRoomType | null>(null);
@@ -139,18 +131,11 @@ export default function YouTubeWatchRoomModals() {
   >([]);
   const lastWatchRoomPlaybackSentAtRef = React.useRef(0);
   const suppressUnsyncUntilRef = React.useRef(0);
-  const assistedIframeLoadedRef = React.useRef(false);
   const watchRoomChatMessagesRef = React.useRef<HTMLDivElement | null>(null);
   const stageContainerRef = React.useRef<HTMLDivElement | null>(null);
   const overlayInactivityTimeoutRef = React.useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
-  const handleYouTubePlayerHostRef = React.useCallback(
-    (node: HTMLIFrameElement | null) => {
-      setYouTubePlayerHostElement(node);
-    },
-    [],
-  );
   const isYouTubePlayerUsable =
     isYouTubePlayerReady && hasYouTubePlayerMethods(youTubePlayerRef.current);
   const watchRoomChatMessages = React.useMemo<WatchRoomChatMessageType[]>(
@@ -219,40 +204,17 @@ export default function YouTubeWatchRoomModals() {
     0,
     watchRoomViewerItems.length - visibleViewerItems.length,
   );
-  const assistedIframeSrc = React.useMemo(() => {
-    if (!youtubePreviewVideoId) {
-      return "";
-    }
-    const upstreamEmbedUrl = `https://www.youtube.com/embed/${encodeURIComponent(youtubePreviewVideoId)}?autoplay=0&rel=0&playsinline=1&enablejsapi=0`;
-    return `${API_BASE_URL}/api/youtube/assist/tunnel?url=${encodeURIComponent(upstreamEmbedUrl)}`;
-  }, [youtubePreviewVideoId]);
-  const directIframeSrc = React.useMemo(() => {
-    if (!youtubePreviewVideoId) {
-      return "";
-    }
-    const query = new URLSearchParams({
-      autoplay: "0",
-      rel: "0",
-      fs: "0",
-      enablejsapi: "1",
-    });
-    if (typeof window !== "undefined") {
-      query.set("origin", window.location.origin);
-    }
-    return `https://www.youtube.com/embed/${encodeURIComponent(youtubePreviewVideoId)}?${query.toString()}`;
-  }, [youtubePreviewVideoId]);
-  const effectiveIframeSrc = React.useMemo(() => {
-    if (youtubeAccessMode !== "assisted") {
-      return directIframeSrc;
-    }
-    return isAssistedIframeFallbackActive ? directIframeSrc : assistedIframeSrc;
-  }, [
-    assistedIframeSrc,
-    directIframeSrc,
-    isAssistedIframeFallbackActive,
-    youtubeAccessMode,
-  ]);
-
+  const watchRoomModalTheme = React.useMemo(
+    () => ({
+      components: {
+        Modal: {
+          titleColor:
+            messengerTheme === "mono" ? "#ffffff" : "var(--mess-text)",
+        },
+      },
+    }),
+    [messengerTheme],
+  );
   const clearSyncEnsureTimeouts = React.useCallback(() => {
     syncEnsureTimeoutsRef.current.forEach((timeoutId) =>
       clearTimeout(timeoutId),
@@ -521,118 +483,70 @@ export default function YouTubeWatchRoomModals() {
     setWatchRoomPlaybackSeconds,
   ]);
 
-  React.useEffect(() => {
-    const roomAtPlayerCreation = activeWatchRoomRef.current;
-    const initialSyncSeconds =
-      roomAtPlayerCreation?.sync_current_time_seconds ?? 0;
-    const initialSyncIsPlaying = roomAtPlayerCreation?.sync_is_playing ?? false;
-    if (youtubeAccessMode === "assisted") {
-      const previousPlayer = youTubePlayerRef.current;
-      if (hasYouTubePlayerMethods(previousPlayer)) {
-        previousPlayer.destroy();
-      }
-      youTubePlayerRef.current = null;
-      setIsYouTubePlayerReady(false);
-      setIsYouTubeApiBlocked(false);
-      return;
-    }
-    if (
-      !youtubePreviewVideoId ||
-      !youTubePlayerHostElement ||
-      !window.YT?.Player ||
-      !isYouTubeApiReady
-    ) {
-      return;
-    }
-
-    setIsYouTubePlayerReady(false);
-    const previousPlayer = youTubePlayerRef.current;
-    if (hasYouTubePlayerMethods(previousPlayer)) {
-      previousPlayer.destroy();
-    }
-    youTubePlayerRef.current = null;
-
-    const createdPlayer = new window.YT.Player(youTubePlayerHostElement, {
-      events: {
-        onReady: (event) => {
-          const playerInstance = hasYouTubePlayerMethods(event.target)
-            ? event.target
-            : hasYouTubePlayerMethods(createdPlayer)
-              ? createdPlayer
-              : null;
-          if (!playerInstance) {
-            setIsYouTubePlayerReady(false);
-            setIsYouTubeApiBlocked(true);
-            return;
-          }
-          youTubePlayerRef.current = playerInstance;
-          setIsYouTubePlayerReady(true);
-          setIsYouTubeApiBlocked(false);
-          setSyncedToUserId(null);
-          suppressUnsyncUntilRef.current = Date.now() + 1500;
-          playerInstance.seekTo(initialSyncSeconds, true);
-          if (initialSyncIsPlaying) {
-            playerInstance.playVideo();
-          } else {
-            playerInstance.pauseVideo();
-          }
-        },
-        onError: () => {
-          setIsYouTubePlayerReady(false);
-          setIsYouTubeApiBlocked(true);
-        },
-        onStateChange: (event) => {
-          if (syncedToUserIdRef.current === null) {
-            sendWatchRoomPlaybackUpdate(true);
-            return;
-          }
-          if (Date.now() < suppressUnsyncUntilRef.current) {
-            sendWatchRoomPlaybackUpdate(true);
-            return;
-          }
-          const state = event.data;
-          const unstartedState = -1;
-          const endedState = 0;
-          if (state === unstartedState || state === endedState) {
-            setSyncedToUserId(null);
-          }
-          sendWatchRoomPlaybackUpdate(true);
-        },
-      },
-    });
-    const playerReadyTimeoutId = setTimeout(() => {
-      if (hasYouTubePlayerMethods(youTubePlayerRef.current)) {
+  const handleYouTubeReady = React.useCallback(
+    (event: YouTubeEvent) => {
+      const playerInstance = event.target;
+      if (!hasYouTubePlayerMethods(playerInstance)) {
+        setIsYouTubePlayerReady(false);
+        setIsYouTubeApiBlocked(true);
         return;
       }
-      setIsYouTubePlayerReady(false);
-      setIsYouTubeApiBlocked(true);
-      if (hasYouTubePlayerMethods(createdPlayer)) {
-        createdPlayer.destroy();
-      }
-    }, 10000);
 
-    return () => {
-      clearTimeout(playerReadyTimeoutId);
-      setIsYouTubePlayerReady(false);
-      if (hasYouTubePlayerMethods(youTubePlayerRef.current)) {
-        youTubePlayerRef.current.destroy();
+      const roomAtPlayerCreation = activeWatchRoomRef.current;
+      const initialSyncSeconds =
+        roomAtPlayerCreation?.sync_current_time_seconds ?? 0;
+      const initialSyncIsPlaying =
+        roomAtPlayerCreation?.sync_is_playing ?? false;
+
+      setPlayer(playerInstance);
+      youTubePlayerRef.current = playerInstance;
+      setIsYouTubePlayerReady(true);
+      setIsYouTubeApiBlocked(false);
+      setSyncedToUserId(null);
+      suppressUnsyncUntilRef.current = Date.now() + 1500;
+      playerInstance.seekTo(initialSyncSeconds, true);
+      if (initialSyncIsPlaying) {
+        playerInstance.playVideo();
+      } else {
+        playerInstance.pauseVideo();
       }
-      if (hasYouTubePlayerMethods(createdPlayer)) {
-        createdPlayer.destroy();
+    },
+    [setIsYouTubeApiBlocked, setIsYouTubePlayerReady, setSyncedToUserId],
+  );
+
+  const handleYouTubeError = React.useCallback(() => {
+    youTubePlayerRef.current = null;
+    setPlayer(undefined);
+    setIsYouTubePlayerReady(false);
+    setIsYouTubeApiBlocked(true);
+  }, [setIsYouTubeApiBlocked, setIsYouTubePlayerReady]);
+
+  const handleYouTubeStateChange = React.useCallback(
+    (event: YouTubeEvent<number>) => {
+      if (syncedToUserIdRef.current === null) {
+        sendWatchRoomPlaybackUpdate(true);
+        return;
       }
-      youTubePlayerRef.current = null;
-    };
-  }, [
-    activeWatchRoom?.id,
-    isYouTubeApiReady,
-    sendWatchRoomPlaybackUpdate,
-    setIsYouTubeApiBlocked,
-    setIsYouTubePlayerReady,
-    setSyncedToUserId,
-    youtubeAccessMode,
-    youtubePreviewVideoId,
-    youTubePlayerHostElement,
-  ]);
+      if (Date.now() < suppressUnsyncUntilRef.current) {
+        sendWatchRoomPlaybackUpdate(true);
+        return;
+      }
+      const state = event.data;
+      const unstartedState = -1;
+      const endedState = 0;
+      if (state === unstartedState || state === endedState) {
+        setSyncedToUserId(null);
+      }
+      sendWatchRoomPlaybackUpdate(true);
+    },
+    [sendWatchRoomPlaybackUpdate, setSyncedToUserId],
+  );
+
+  React.useEffect(() => {
+    setPlayer(undefined);
+    youTubePlayerRef.current = null;
+    setIsYouTubePlayerReady(false);
+  }, [setIsYouTubePlayerReady, youtubePreviewVideoId]);
 
   React.useEffect(() => {
     if (isYouTubePlayerUsable || syncedToUserId === null) {
@@ -747,24 +661,6 @@ export default function YouTubeWatchRoomModals() {
       setWatchRoomChatDraft("");
     }
   }, [youtubePreviewVideoId]);
-
-  React.useEffect(() => {
-    if (youtubeAccessMode !== "assisted") {
-      setIsAssistedIframeFallbackActive(false);
-      assistedIframeLoadedRef.current = false;
-      return;
-    }
-    setIsAssistedIframeFallbackActive(false);
-    assistedIframeLoadedRef.current = false;
-    const timeoutId = setTimeout(() => {
-      setIsAssistedIframeFallbackActive((current) =>
-        assistedIframeLoadedRef.current ? current : true,
-      );
-    }, 9000);
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [youtubeAccessMode, youtubePreviewVideoId]);
 
   React.useEffect(() => {
     const node = watchRoomChatMessagesRef.current;
@@ -1009,20 +905,21 @@ export default function YouTubeWatchRoomModals() {
 
   return (
     <>
-      <AntdModal
-        title={player?.videoTitle || "YouTube video"}
-        open={youtubePreviewVideoId !== null}
-        onCancel={onCloseWatchRoom}
-        footer={null}
-        destroyOnHidden
-        width="94vw"
-        className={
-          messengerTheme === "mono"
-            ? "youtube-preview-modal watch-room-modal watch-room-modal-mono"
-            : "youtube-preview-modal watch-room-modal watch-room-modal-retro"
-        }
-      >
-        {youtubePreviewVideoId ? (
+      <ConfigProvider theme={watchRoomModalTheme}>
+        <AntdModal
+          title={player?.videoTitle || "YouTube video"}
+          open={youtubePreviewVideoId !== null}
+          onCancel={onCloseWatchRoom}
+          footer={null}
+          destroyOnHidden
+          width="94vw"
+          className={
+            messengerTheme === "mono"
+              ? "youtube-preview-modal watch-room-modal watch-room-modal-mono"
+              : "youtube-preview-modal watch-room-modal"
+          }
+        >
+          {youtubePreviewVideoId ? (
           <div
             style={{
               display: "flex",
@@ -1040,11 +937,7 @@ export default function YouTubeWatchRoomModals() {
               }}
             >
               <Text
-                className={
-                  messengerTheme === "mono"
-                    ? "watch-room-meta-text-mono"
-                    : "retro-pixel-text"
-                }
+                className={"watch-room-meta-text-mono"}
                 style={{ color: "var(--mess-muted-text)" }}
               >
                 <span style={{ marginRight: "10px" }}>
@@ -1197,7 +1090,9 @@ export default function YouTubeWatchRoomModals() {
               >
                 <YouTube
                   videoId={youtubePreviewVideoId}
-                  onReady={(event) => setPlayer(event.target)}
+                  onReady={handleYouTubeReady}
+                  onError={handleYouTubeError}
+                  onStateChange={handleYouTubeStateChange}
                   style={{ width: "100%", height: "100%" }}
                   opts={{
                     width: "100%",
@@ -1377,7 +1272,8 @@ export default function YouTubeWatchRoomModals() {
             ) : null}
           </div>
         ) : null}
-      </AntdModal>
+        </AntdModal>
+      </ConfigProvider>
 
       <AntdModal
         title="Invite Viewer"

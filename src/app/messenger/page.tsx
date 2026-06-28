@@ -1,11 +1,13 @@
 "use client";
 import React, { Fragment } from "react";
 import { message as antdMessage } from "antd";
-import LeftSider from "./components/LeftSider";
-import ChatsListSider from "./components/ChatsListSider";
-import YouTubeWatchRoomModals from "./components/YouTubeWatchRoomModals";
-import ExpenseSplitModal from "./components/ExpenseSplitModal";
-import Workspace from "./components/Workspace";
+import {
+  ChatsListSider,
+  ExpenseSplitModal,
+  LeftSider,
+  Workspace,
+  YouTubeWatchRoomModals,
+} from "./components";
 import {
   ALL_CHATS_GROUP_ID,
   CHAT_GROUPS_CACHE_STORAGE_KEY,

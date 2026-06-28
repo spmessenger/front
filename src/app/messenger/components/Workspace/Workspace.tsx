@@ -2,16 +2,16 @@
 
 import React from "react";
 import { Button, Layout, Typography, message as antdMessage } from "antd";
-import WorkspaceHeader from "./WorkspaceHeader";
+import WorkspaceHeader from "../WorkspaceHeader";
 import WorkspaceContent from "./WorkspaceContent";
 import WorkspaceFooter from "./WorkspaceFooter";
-import ForwardMessageModalContent from "./ForwardMessageModalContent";
-import { useVoicePlayback } from "../hooks/useVoicePlayback";
+import ForwardMessageModalContent from "../ForwardMessageModalContent";
+import { useVoicePlayback } from "../../hooks";
 import {
   ATTACHMENT_MAX_SIZE_BYTES,
   SCROLL_HIGHLIGHT_DURATION_MS,
-} from "../constants";
-import type { AttachmentPickerKind, ChatSocketResponse } from "../types";
+} from "../../constants";
+import type { AttachmentPickerKind, ChatSocketResponse } from "../../types";
 import {
   createClientMessageId,
   extractYouTubeVideoId,
@@ -25,7 +25,7 @@ import {
   sortChatsByRules,
   uploadFileWithProgress,
   watchRoomMapKey,
-} from "../utils";
+} from "../../utils";
 import { useModalSetter } from "@/hooks/features/ui/modal";
 import {
   useActiveWatchRoomSetter,
@@ -370,7 +370,11 @@ export default function Workspace() {
     const youtubeIds = Array.from(
       new Set(
         selectedMessages
-          .map((message) => extractYouTubeVideoId(message.text))
+          .map(
+            (message) =>
+              message.metadata?.youtube?.youtube_video_id ??
+              extractYouTubeVideoId(message.text),
+          )
           .filter((videoId): videoId is string => Boolean(videoId)),
       ),
     );
