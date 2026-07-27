@@ -1,6 +1,7 @@
 export { default as ForwardedMessageBlock } from "./ForwardedMessageBlock";
 export { default as GeoLeafletMap } from "./GeoLeafletMap";
 export { default as LiveLocationsMap } from "./LiveLocationsMap";
+export { default as Message } from "./Message";
 export { default as MessageLinkPreviewBlock } from "./MessageLinkPreviewBlock";
 export { default as MessageMetaRow } from "./MessageMetaRow";
 export { default as MessageTextBlock } from "./MessageTextBlock";

@@ -9,6 +9,7 @@ import {
 import type { MessengerTheme } from "../../types";
 import { parseGeoShareUrl } from "../../utils";
 import GeoLeafletMap from "./GeoLeafletMap";
+import YoutubeMetaButton from "../Buttons/YoutubeMetaButton";
 
 const { Text } = Typography;
 
@@ -93,37 +94,7 @@ export default function MessageMetaRow({
           ) : null}
         </Text>
         {youtubeVideoId ? (
-          <Tooltip
-            title="Watch on Your side"
-            classNames={{
-              root:
-                messengerTheme === "mono"
-                  ? "youtube-tooltip youtube-tooltip-mono"
-                  : "youtube-tooltip",
-            }}
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={<YoutubeFilled />}
-              aria-label="Open YouTube preview"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenYouTubeWatchRoom(youtubeVideoId);
-              }}
-              className={
-                messengerTheme === "mono"
-                  ? "youtube-trigger-btn youtube-trigger-btn-mono"
-                  : "youtube-trigger-btn"
-              }
-              style={{
-                height: "20px",
-                minWidth: "20px",
-                padding: 0,
-                marginLeft: "auto",
-              }}
-            />
-          </Tooltip>
+          <YoutubeMetaButton onClick={() => onOpenYouTubeWatchRoom(youtubeVideoId)} />
         ) : null}
         {!youtubeVideoId && geoPoint ? (
           <Tooltip

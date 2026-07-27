@@ -26,6 +26,13 @@ import type {
 } from "@/lib/types";
 
 export default class MessengerApi {
+  static createYouTubeWatchRoom(youtubeVideoId: string, messageId: number) {
+    return axios.post<WatchRoomType>("/api/rooms/youtube", {
+      youtube_video_id: youtubeVideoId,
+      message_id: messageId,  
+    });
+  }
+
   static getMessagesSocket() {
     const socketUrl = new URL(`${WS_BASE_URL}/api/ws/chats`);
     const accessToken =
@@ -88,11 +95,16 @@ export default class MessengerApi {
   }
 
   static deleteMessage(chatId: number, messageId: number) {
-    return axios.delete<ChatMessageDeleteResponse>(`/api/chats/${chatId}/messages/${messageId}`);
+    return axios.delete<ChatMessageDeleteResponse>(
+      `/api/chats/${chatId}/messages/${messageId}`,
+    );
   }
 
   static initAttachment(chatId: number, payload: AttachmentInitPayload) {
-    return axios.post<AttachmentInitResponse>(`/api/chats/${chatId}/attachments/init`, payload);
+    return axios.post<AttachmentInitResponse>(
+      `/api/chats/${chatId}/attachments/init`,
+      payload,
+    );
   }
 
   static completeAttachment(
@@ -136,9 +148,12 @@ export default class MessengerApi {
   }
 
   static getWatchRoomMessages(roomId: string, limit: number = 100) {
-    return axios.get<WatchRoomChatMessageType[]>(`/api/watch-rooms/${roomId}/messages`, {
-      params: { limit },
-    });
+    return axios.get<WatchRoomChatMessageType[]>(
+      `/api/watch-rooms/${roomId}/messages`,
+      {
+        params: { limit },
+      },
+    );
   }
 
   static joinWatchRoom(roomId: string) {
@@ -149,18 +164,29 @@ export default class MessengerApi {
     return axios.post<WatchRoomType>(`/api/watch-rooms/${roomId}/leave`);
   }
 
-  static syncWatchRoom(roomId: string, currentTimeSeconds: number, isPlaying: boolean) {
+  static syncWatchRoom(
+    roomId: string,
+    currentTimeSeconds: number,
+    isPlaying: boolean,
+  ) {
     return axios.post<WatchRoomType>(`/api/watch-rooms/${roomId}/sync`, {
       current_time_seconds: currentTimeSeconds,
       is_playing: isPlaying,
     });
   }
 
-  static inviteToWatchRoom(roomId: string, targetUserId: number, targetChatId?: number) {
-    return axios.post<WatchRoomInviteType>(`/api/watch-rooms/${roomId}/invite`, {
-      target_user_id: targetUserId,
-      target_chat_id: targetChatId,
-    });
+  static inviteToWatchRoom(
+    roomId: string,
+    targetUserId: number,
+    targetChatId?: number,
+  ) {
+    return axios.post<WatchRoomInviteType>(
+      `/api/watch-rooms/${roomId}/invite`,
+      {
+        target_user_id: targetUserId,
+        target_chat_id: targetChatId,
+      },
+    );
   }
 
   static getWatchRoomInvites() {
@@ -168,11 +194,15 @@ export default class MessengerApi {
   }
 
   static acceptWatchRoomInvite(inviteId: string) {
-    return axios.post<WatchRoomType>(`/api/watch-rooms/invites/${inviteId}/accept`);
+    return axios.post<WatchRoomType>(
+      `/api/watch-rooms/invites/${inviteId}/accept`,
+    );
   }
 
   static declineWatchRoomInvite(inviteId: string) {
-    return axios.post<WatchRoomInviteType>(`/api/watch-rooms/invites/${inviteId}/decline`);
+    return axios.post<WatchRoomInviteType>(
+      `/api/watch-rooms/invites/${inviteId}/decline`,
+    );
   }
 
   static pinChat(chatId: number) {
@@ -200,11 +230,15 @@ export default class MessengerApi {
   }
 
   static getChatExpenseOverview(chatId: number) {
-    return axios.get<ExpenseOverviewType>(`/api/chats/${chatId}/expenses/overview`);
+    return axios.get<ExpenseOverviewType>(
+      `/api/chats/${chatId}/expenses/overview`,
+    );
   }
 
   static getChatExpensePayments(chatId: number) {
-    return axios.get<ExpensePaymentType[]>(`/api/chats/${chatId}/expenses/payments`);
+    return axios.get<ExpensePaymentType[]>(
+      `/api/chats/${chatId}/expenses/payments`,
+    );
   }
 
   static markExpenseSettlementPaid(
@@ -215,6 +249,9 @@ export default class MessengerApi {
       amount_minor: number;
     },
   ) {
-    return axios.post<ExpenseOverviewType>(`/api/chats/${chatId}/expenses/settlements/mark-paid`, payload);
+    return axios.post<ExpenseOverviewType>(
+      `/api/chats/${chatId}/expenses/settlements/mark-paid`,
+      payload,
+    );
   }
 }
